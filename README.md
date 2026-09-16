@@ -9,12 +9,32 @@ database and opens a cursor, and the rows come back as delimited text.
 
 ## Install
 
+Download the packaged extension from the
+[latest release](https://github.com/AleCyriaco/oracle-fusion-sql-vscode/releases/latest)
+and install it from inside VS Code: <kbd>Ctrl/Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>
+→ **Extensions: Install from VSIX…**
+
+> Installing with `code --install-extension` **while VS Code is running** is not
+> reliable: the running instance rewrites its extension list from memory and
+> reverts the change, after the CLI has already reported success. Either install
+> from inside VS Code as above, or quit it first:
+>
+> ```bash
+> curl -L -o /tmp/fusion-sql.vsix https://github.com/AleCyriaco/oracle-fusion-sql-vscode/releases/latest/download/fusion-sql.vsix
+> osascript -e 'quit app "Visual Studio Code"'
+> code --install-extension /tmp/fusion-sql.vsix --force && open -a "Visual Studio Code"
+> ```
+>
+> Confirm with `code --list-extensions --show-versions | grep fusion-sql`.
+
+To build it yourself:
+
 ```
 npm install && npm run compile && npm run package
 ```
 
-then **Extensions → … → Install from VSIX**. Press <kbd>F5</kbd> in this folder
-to run it from source in an Extension Development Host.
+Press <kbd>F5</kbd> in this folder to run from source in an Extension
+Development Host.
 
 ## Using it
 
@@ -24,7 +44,13 @@ to run it from source in an Extension Development Host.
 2. Fill the form and press **Test Connection** before saving — a wrong host or
    password is only ever discovered by trying.
 3. Click a connection to make it active.
-4. Open a `.sql` file and press <kbd>Ctrl/Cmd</kbd>+<kbd>Enter</kbd>.
+4. **New Query** in the view toolbar opens an editor already set to SQL. Press
+   <kbd>Ctrl/Cmd</kbd>+<kbd>Enter</kbd>, or click ▷ in the editor toolbar.
+
+> The Run button and the keybinding only appear on editors whose language is
+> **SQL**. A file made with <kbd>Ctrl/Cmd</kbd>+<kbd>N</kbd> starts as plain
+> text, so the toolbar looks empty — use **New Query**, or click the language
+> name in the status bar and pick SQL.
 
 Right-click a connection for **Test**, **Edit**, **Duplicate**, **Delete**, and
 **Sign In / Sign Out** on SSO connections. Editing opens the same form, with the
@@ -94,6 +120,12 @@ hold only the host, username and report path, so they stay safe to sync.
   statement already paginates.
 - Values are returned as text, exactly as BI Publisher formatted them — so a
   15-digit `PO_HEADER_ID` keeps every digit instead of becoming a float.
+
+## Troubleshooting
+
+**Fusion: Show Log** (or *Output* → **Oracle Fusion SQL**) records every command,
+the editor and language it ran against, the connection it chose and the row count
+— so a command that appears to do nothing can be traced to the step that stopped.
 
 ## Developing
 

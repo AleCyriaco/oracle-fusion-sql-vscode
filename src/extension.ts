@@ -11,11 +11,22 @@ import { ResultsPanel } from './resultsPanel';
 const EXTENSION_ID = 'alecyriaco.fusion-sql';
 const ACTIVE_KEY = 'fusionSql.activeConnection';
 
+/**
+ * Everything the extension does, in one place. Without it a command that
+ * returns early is indistinguishable from one that was never invoked, which
+ * is exactly the failure that is impossible to report usefully.
+ */
+let log: vscode.LogOutputChannel;
+
 let tree: ConnectionsProvider;
 /** Resolves the OAuth redirect that VS Code hands back through its URI handler. */
 let pendingSignIn: { state: string; resolve: (params: URLSearchParams) => void; reject: (e: Error) => void } | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+    log = vscode.window.createOutputChannel('Oracle Fusion SQL', { log: true });
+    context.subscriptions.push(log);
+    log.info(`Activated ${EXTENSION_ID}`);
+
     tree = new ConnectionsProvider(context);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('fusionSql.connections', tree),
@@ -34,6 +45,8 @@ export function activate(context: vscode.ExtensionContext): void {
         command('fusionSql.signOut', (item?: ConnectionItem) => signOut(context, item)),
         command('fusionSql.testConnection', (item?: ConnectionItem) => testConnection(context, item)),
         command('fusionSql.runQuery', () => runQuery(context)),
+        command('fusionSql.newQuery', () => newQuery()),
+        command('fusionSql.showLog', () => log.show()),
     );
 }
 
@@ -41,10 +54,18 @@ export function deactivate(): void { /* nothing to clean up */ }
 
 function command(id: string, handler: (...args: any[]) => unknown): vscode.Disposable {
     return vscode.commands.registerCommand(id, async (...args) => {
+        log.info(`> ${id}`);
         try {
             await handler(...args);
+            log.info(`< ${id}`);
         } catch (error) {
-            void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));
+            const message = error instanceof Error ? error.message : String(error);
+            log.error(`! ${id}: ${message}`);
+            if (error instanceof Error && error.stack) { log.error(error.stack); }
+            // Offer the log rather than making the user go looking for it.
+            void vscode.window.showErrorMessage(message, 'Show Log').then((choice) => {
+                if (choice === 'Show Log') { log.show(); }
+            });
         }
     });
 }
@@ -101,8 +122,8 @@ function editorHost(context: vscode.ExtensionContext) {
                 if (oldPassword) { await context.secrets.store(passwordKey(connection.name), oldPassword); }
                 if (oldToken) { await context.secrets.store(tokenKey(connection.name), oldToken); }
                 await deleteConnection(previousName, context.secrets);
-                if (context.workspaceState.get<string>(ACTIVE_KEY) === previousName) {
-                    await context.workspaceState.update(ACTIVE_KEY, connection.name);
+                if (context.globalState.get<string>(ACTIVE_KEY) === previousName) {
+                    await context.globalState.update(ACTIVE_KEY, connection.name);
                 }
             }
             if (result.password) {
@@ -144,7 +165,7 @@ async function removeConnection(context: vscode.ExtensionContext, item?: Connect
 async function setActive(context: vscode.ExtensionContext, item?: ConnectionItem): Promise<void> {
     const connection = await pick(item);
     if (!connection) { return; }
-    await context.workspaceState.update(ACTIVE_KEY, connection.name);
+    await context.globalState.update(ACTIVE_KEY, connection.name);
     tree.refresh();
     void vscode.window.showInformationMessage(`Active connection: ${connection.name}`);
 }
@@ -240,17 +261,55 @@ async function loadTemplate(context: vscode.ExtensionContext): Promise<Buffer> {
     }
 }
 
+/**
+ * A scratch editor already set to SQL. An untitled file is created as plain
+ * text, and with that language the Run button and the keybinding do not appear
+ * at all — which looks like the extension is broken rather than like a setting
+ * that needs changing.
+ */
+async function newQuery(): Promise<void> {
+    const document = await vscode.workspace.openTextDocument({ language: 'sql', content: '' });
+    await vscode.window.showTextDocument(document);
+}
+
 async function runQuery(context: vscode.ExtensionContext): Promise<void> {
     const editor = vscode.window.activeTextEditor;
-    if (!editor) { throw new Error('Open a .sql file first.'); }
+    if (!editor) {
+        throw new Error('No editor is focused. Open a .sql file and put the cursor in it.');
+    }
+    log.info(`Editor: ${editor.document.uri.toString()} (language ${editor.document.languageId})`);
+    if (editor.document.languageId !== 'sql') {
+        // Offer the fix once rather than leaving the toolbar mysteriously empty.
+        void vscode.window.showWarningMessage(
+            `This editor is "${editor.document.languageId}", not SQL — the Run button and `
+            + 'Ctrl/Cmd+Enter only appear on SQL files.',
+            'Set Language to SQL',
+        ).then(async (choice) => {
+            if (choice === 'Set Language to SQL') {
+                await vscode.languages.setTextDocumentLanguage(editor.document, 'sql');
+            }
+        });
+    }
 
     const sql = statementAtCursor(editor);
     if (!sql.trim()) { throw new Error('No statement under the cursor.'); }
+    log.info(`Statement: ${sql.trim().replace(/\s+/g, ' ').slice(0, 120)}`);
 
     const connection = await activeConnection(context);
-    if (!connection) { return; }
+    if (!connection) {
+        log.warn('No connection chosen — nothing to run against.');
+        return;
+    }
+    log.info(`Connection: ${connection.name} (${connection.url}, ${connection.authMode ?? 'basic'})`);
+
     const client = await buildClient(context, connection);
-    if (!client) { return; }
+    if (!client) {
+        void vscode.window.showWarningMessage(
+            `No credentials for "${connection.name}" — the query was not run.`,
+        );
+        log.warn('buildClient returned no client (credentials missing or prompt cancelled).');
+        return;
+    }
 
     const pageSize = vscode.workspace.getConfiguration('fusionSql').get<number>('pageSize') ?? 200;
     const panel = ResultsPanel.show(context.extensionUri);
@@ -258,7 +317,9 @@ async function runQuery(context: vscode.ExtensionContext): Promise<void> {
 
     const fetchPage = (offset: number): Promise<QueryPage> => client.query(sql, offset, pageSize);
     try {
-        panel.render(await fetchPage(0), fetchPage);
+        const page = await fetchPage(0);
+        log.info(`${page.rows.length} row(s), ${page.columns.length} column(s), ${page.elapsedMs} ms`);
+        panel.render(page, fetchPage);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         panel.setError(message);
@@ -286,7 +347,7 @@ export function statementAtCursor(editor: vscode.TextEditor): string {
 }
 
 async function activeConnection(context: vscode.ExtensionContext): Promise<ConnectionConfig | undefined> {
-    const name = context.workspaceState.get<string>(ACTIVE_KEY);
+    const name = context.globalState.get<string>(ACTIVE_KEY);
     const existing = name ? findConnection(name) : undefined;
     if (existing) { return existing; }
 
@@ -299,12 +360,24 @@ async function activeConnection(context: vscode.ExtensionContext): Promise<Conne
         if (choice === 'Import connections.json') { await importConnections(); }
         return undefined;
     }
+    // With a single environment there is nothing to choose, and prompting from
+    // the command palette races with the palette closing: the quick pick can be
+    // dismissed before it is seen, which reads as the command doing nothing.
+    if (all.length === 1) {
+        await context.globalState.update(ACTIVE_KEY, all[0].name);
+        tree.refresh();
+        log.info(`Using the only configured connection: ${all[0].name}`);
+        return all[0];
+    }
     const picked = await vscode.window.showQuickPick(
         all.map((c) => ({ label: c.name, description: c.url, connection: c })),
-        { title: 'Run on which connection?' },
+        { title: 'Run on which connection?', ignoreFocusOut: true },
     );
-    if (!picked) { return undefined; }
-    await context.workspaceState.update(ACTIVE_KEY, picked.connection.name);
+    if (!picked) {
+        log.warn('Connection picker dismissed.');
+        return undefined;
+    }
+    await context.globalState.update(ACTIVE_KEY, picked.connection.name);
     tree.refresh();
     return picked.connection;
 }
@@ -327,9 +400,10 @@ async function pick(item?: ConnectionItem): Promise<ConnectionConfig | undefined
     if (item?.connection) { return item.connection; }
     const all = listConnections();
     if (all.length === 0) { throw new Error('No connections configured.'); }
+    if (all.length === 1) { return all[0]; }
     const picked = await vscode.window.showQuickPick(
         all.map((c) => ({ label: c.name, description: c.url, connection: c })),
-        { title: 'Select a connection' },
+        { title: 'Select a connection', ignoreFocusOut: true },
     );
     return picked?.connection;
 }
@@ -373,7 +447,7 @@ class ConnectionsProvider implements vscode.TreeDataProvider<ConnectionItem> {
     getTreeItem(element: ConnectionItem): vscode.TreeItem { return element; }
 
     async getChildren(): Promise<ConnectionItem[]> {
-        const active = this.context.workspaceState.get<string>(ACTIVE_KEY);
+        const active = this.context.globalState.get<string>(ACTIVE_KEY);
         const items: ConnectionItem[] = [];
         for (const connection of listConnections()) {
             const signedIn = (connection.authMode ?? 'basic') !== 'sso'

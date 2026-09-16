@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "publisher": "alecyriaco",
   "license": "MIT",
   "repository": {
@@ -48,6 +48,12 @@
       ]
     },
     "commands": [
+      {
+        "command": "fusionSql.newQuery",
+        "title": "New Query",
+        "category": "Fusion",
+        "icon": "$(new-file)"
+      },
       {
         "command": "fusionSql.addConnection",
         "title": "New Connection",
@@ -111,6 +117,11 @@
         "title": "Refresh",
         "category": "Fusion",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "fusionSql.showLog",
+        "title": "Show Log",
+        "category": "Fusion"
       }
     ],
     "menus": {
@@ -119,6 +130,11 @@
           "command": "fusionSql.addConnection",
           "when": "view == fusionSql.connections",
           "group": "navigation@1"
+        },
+        {
+          "command": "fusionSql.newQuery",
+          "when": "view == fusionSql.connections",
+          "group": "navigation@2"
         },
         {
           "command": "fusionSql.refresh",

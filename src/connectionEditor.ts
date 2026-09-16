@@ -234,7 +234,7 @@ function html(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   </div>
 
   <label for="reportPath">Report path <span class="optional" id="reportOptional">(optional)</span></label>
-  <input id="reportPath" type="text" placeholder="/Custom/FusionQuery/v1/csv.xdo" spellcheck="false">
+  <input id="reportPath" type="text" placeholder="e.g. /Custom/FusionQuery/v1/csv.xdo" spellcheck="false">
   <p class="hint" id="reportHint">Leave blank to use — and deploy, if missing — a copy in your own My Folders.</p>
 
   <div id="status" hidden></div>
