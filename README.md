@@ -18,11 +18,18 @@ to run it from source in an Extension Development Host.
 
 ## Using it
 
-1. **Oracle Fusion** in the activity bar → **+** to add a connection, or
-   **Fusion: Import from connections.json** to reuse an existing
-   `fusion-query` / MCP setup.
-2. Click a connection to make it active.
-3. Open a `.sql` file and press <kbd>Ctrl/Cmd</kbd>+<kbd>Enter</kbd>.
+1. **Oracle Fusion** in the activity bar → **+** for a new connection, or
+   **Import from connections.json** to reuse an existing `fusion-query` / MCP
+   setup.
+2. Fill the form and press **Test Connection** before saving — a wrong host or
+   password is only ever discovered by trying.
+3. Click a connection to make it active.
+4. Open a `.sql` file and press <kbd>Ctrl/Cmd</kbd>+<kbd>Enter</kbd>.
+
+Right-click a connection for **Test**, **Edit**, **Duplicate**, **Delete**, and
+**Sign In / Sign Out** on SSO connections. Editing opens the same form, with the
+stored password left alone unless you type a new one; renaming carries the
+secrets across.
 
 Results open beside the editor, one page at a time, with **Export CSV**.
 

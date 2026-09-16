@@ -25,7 +25,8 @@
     "erp"
   ],
   "activationEvents": [
-    "onLanguage:sql"
+    "onLanguage:sql",
+    "onView:fusionSql.connections"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -49,7 +50,7 @@
     "commands": [
       {
         "command": "fusionSql.addConnection",
-        "title": "Add Connection",
+        "title": "New Connection",
         "category": "Fusion",
         "icon": "$(add)"
       },
@@ -65,8 +66,14 @@
         "icon": "$(edit)"
       },
       {
+        "command": "fusionSql.duplicateConnection",
+        "title": "Duplicate Connection",
+        "category": "Fusion",
+        "icon": "$(files)"
+      },
+      {
         "command": "fusionSql.removeConnection",
-        "title": "Remove Connection",
+        "title": "Delete Connection",
         "category": "Fusion",
         "icon": "$(trash)"
       },
@@ -117,38 +124,58 @@
           "command": "fusionSql.refresh",
           "when": "view == fusionSql.connections",
           "group": "navigation@2"
+        },
+        {
+          "command": "fusionSql.importConnections",
+          "when": "view == fusionSql.connections",
+          "group": "1_import@1"
         }
       ],
       "view/item/context": [
         {
-          "command": "fusionSql.setActiveConnection",
+          "command": "fusionSql.testConnection",
           "when": "view == fusionSql.connections && viewItem =~ /^connection/",
           "group": "inline@1"
         },
         {
-          "command": "fusionSql.testConnection",
+          "command": "fusionSql.editConnection",
           "when": "view == fusionSql.connections && viewItem =~ /^connection/",
           "group": "inline@2"
         },
         {
+          "command": "fusionSql.setActiveConnection",
+          "when": "view == fusionSql.connections && viewItem =~ /^connection/",
+          "group": "1_use@1"
+        },
+        {
+          "command": "fusionSql.testConnection",
+          "when": "view == fusionSql.connections && viewItem =~ /^connection/",
+          "group": "1_use@2"
+        },
+        {
           "command": "fusionSql.signIn",
           "when": "view == fusionSql.connections && viewItem == connection.sso",
-          "group": "1_auth@1"
+          "group": "2_auth@1"
         },
         {
           "command": "fusionSql.signOut",
           "when": "view == fusionSql.connections && viewItem == connection.sso",
-          "group": "1_auth@2"
+          "group": "2_auth@2"
         },
         {
           "command": "fusionSql.editConnection",
           "when": "view == fusionSql.connections && viewItem =~ /^connection/",
-          "group": "2_edit@1"
+          "group": "3_edit@1"
+        },
+        {
+          "command": "fusionSql.duplicateConnection",
+          "when": "view == fusionSql.connections && viewItem =~ /^connection/",
+          "group": "3_edit@2"
         },
         {
           "command": "fusionSql.removeConnection",
           "when": "view == fusionSql.connections && viewItem =~ /^connection/",
-          "group": "2_edit@2"
+          "group": "3_edit@3"
         }
       ],
       "editor/title": [
@@ -237,7 +264,13 @@
           "description": "HTTP timeout in seconds."
         }
       }
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "fusionSql.connections",
+        "contents": "No Fusion connections yet.\n[New Connection](command:fusionSql.addConnection)\nAlready using the fusion-query MCP server? Bring its environments across.\n[Import from connections.json](command:fusionSql.importConnections)"
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p ./",

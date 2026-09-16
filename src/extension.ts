@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { AuthProvider, idcsEndpoints, signInInteractive } from './auth';
+import { AuthProvider, BasicAuth, signInInteractive } from './auth';
+import { ConnectionEditor, EditorResult } from './connectionEditor';
 import { FusionClient, QueryPage } from './client';
 import {
     ConnectionConfig, deleteConnection, findConnection, importFromJson, listConnections,
@@ -25,7 +26,8 @@ export function activate(context: vscode.ExtensionContext): void {
         command('fusionSql.refresh', () => tree.refresh()),
         command('fusionSql.addConnection', () => addConnection(context)),
         command('fusionSql.importConnections', () => importConnections()),
-        command('fusionSql.editConnection', (item?: ConnectionItem) => editConnection(item)),
+        command('fusionSql.editConnection', (item?: ConnectionItem) => editConnection(context, item)),
+        command('fusionSql.duplicateConnection', (item?: ConnectionItem) => duplicateConnection(context, item)),
         command('fusionSql.removeConnection', (item?: ConnectionItem) => removeConnection(context, item)),
         command('fusionSql.setActiveConnection', (item?: ConnectionItem) => setActive(context, item)),
         command('fusionSql.signIn', (item?: ConnectionItem) => signIn(context, item)),
@@ -49,52 +51,68 @@ function command(id: string, handler: (...args: any[]) => unknown): vscode.Dispo
 
 // --- connection management -------------------------------------------------
 
-async function addConnection(context: vscode.ExtensionContext): Promise<void> {
-    const name = await ask('Connection name', 'e.g. FUSION-DEV');
-    if (!name) { return; }
-    if (findConnection(name)) { throw new Error(`A connection named "${name}" already exists.`); }
+function addConnection(context: vscode.ExtensionContext): void {
+    ConnectionEditor.show(context.extensionUri, editorHost(context), context.secrets);
+}
 
-    const url = await ask('Fusion URL or hostname', 'e.g. pod.fa.us2.oraclecloud.com');
-    if (!url) { return; }
+async function editConnection(context: vscode.ExtensionContext, item?: ConnectionItem): Promise<void> {
+    const connection = await pick(item);
+    if (!connection) { return; }
+    ConnectionEditor.show(context.extensionUri, editorHost(context), context.secrets, connection);
+}
 
-    const mode = await vscode.window.showQuickPick(
-        [
-            { label: 'Username and password', detail: 'Can deploy the proxy report automatically.', value: 'basic' as const },
-            { label: 'Single sign-on (OAuth 2.0)', detail: 'Browser sign-in. Needs a proxy report that already exists.', value: 'sso' as const },
-        ],
-        { title: 'How should this connection sign in?', ignoreFocusOut: true },
-    );
-    if (!mode) { return; }
+/**
+ * Open the form pre-filled from an existing connection but under a free name,
+ * which is how most environments get added: one pod differs from the next by a
+ * word in the host.
+ */
+async function duplicateConnection(context: vscode.ExtensionContext, item?: ConnectionItem): Promise<void> {
+    const source = await pick(item);
+    if (!source) { return; }
+    let name = `${source.name} copy`;
+    for (let i = 2; findConnection(name); i++) { name = `${source.name} copy ${i}`; }
+    ConnectionEditor.show(context.extensionUri, editorHost(context), context.secrets, { ...source, name });
+}
 
-    const connection: ConnectionConfig = { name, url, authMode: mode.value };
+function editorHost(context: vscode.ExtensionContext) {
+    return {
+        /** Test what is on screen, not what is saved — including an unsaved password. */
+        async test(connection: ConnectionConfig, password?: string): Promise<string> {
+            const auth = password && (connection.authMode ?? 'basic') === 'basic'
+                ? new BasicAuth(connection.user ?? '', password)
+                : await resolveAuth(connection, context.secrets);
+            if (!auth) {
+                throw new Error((connection.authMode ?? 'basic') === 'sso'
+                    ? 'Save the connection and run "Sign In (SSO)" before testing it.'
+                    : 'Enter a password to test the connection.');
+            }
+            const client = buildClientWith(context, connection, auth);
+            const result = await client.testConnection();
+            return result.message;
+        },
 
-    if (mode.value === 'basic') {
-        connection.user = await ask('Fusion username', 'e.g. FUSION_USER');
-        if (!connection.user) { return; }
-        const password = await vscode.window.showInputBox({
-            title: 'Password', password: true, ignoreFocusOut: true,
-            prompt: 'Stored in the OS keychain, never in settings.',
-        });
-        if (password) { await context.secrets.store(passwordKey(name), password); }
-    } else {
-        const idcsHost = await ask('Identity domain host (IDCS / OCI IAM)', 'e.g. idcs-xxxx.identity.oraclecloud.com');
-        if (!idcsHost) { return; }
-        const clientId = await ask('OAuth client ID', 'From the application registered in your identity domain');
-        if (!clientId) { return; }
-        connection.oauth = { ...idcsEndpoints(idcsHost), clientId, scope: 'openid offline_access' };
-        connection.reportPath = await ask(
-            'Proxy report path',
-            'e.g. /Custom/FusionQuery/v1/csv.xdo — required for SSO',
-        );
-        if (!connection.reportPath) { return; }
-    }
-
-    await saveConnection(connection);
-    tree.refresh();
-    void vscode.window.showInformationMessage(
-        `Connection "${name}" created.` +
-        (mode.value === 'sso' ? ' Run "Sign In (SSO)" to authenticate.' : ''),
-    );
+        async save(result: EditorResult): Promise<void> {
+            const { connection, previousName } = result;
+            // A rename is a new settings entry, so carry the secrets across and
+            // drop the old one rather than stranding both.
+            if (previousName && previousName !== connection.name) {
+                const oldPassword = await context.secrets.get(passwordKey(previousName));
+                const oldToken = await context.secrets.get(tokenKey(previousName));
+                if (oldPassword) { await context.secrets.store(passwordKey(connection.name), oldPassword); }
+                if (oldToken) { await context.secrets.store(tokenKey(connection.name), oldToken); }
+                await deleteConnection(previousName, context.secrets);
+                if (context.workspaceState.get<string>(ACTIVE_KEY) === previousName) {
+                    await context.workspaceState.update(ACTIVE_KEY, connection.name);
+                }
+            }
+            if (result.password) {
+                await context.secrets.store(passwordKey(connection.name), result.password);
+            }
+            await saveConnection(connection);
+            tree.refresh();
+            void vscode.window.showInformationMessage(`Saved connection "${connection.name}".`);
+        },
+    };
 }
 
 async function importConnections(): Promise<void> {
@@ -110,12 +128,6 @@ async function importConnections(): Promise<void> {
         count === 0 ? 'No connections found in that file.'
             : `Imported ${count} connection${count === 1 ? '' : 's'}. Passwords are asked on first use.`,
     );
-}
-
-async function editConnection(item?: ConnectionItem): Promise<void> {
-    const connection = await pick(item);
-    if (!connection) { return; }
-    await vscode.commands.executeCommand('workbench.action.openSettingsJson', { revealSetting: { key: 'fusionSql.connections' } });
 }
 
 async function removeConnection(context: vscode.ExtensionContext, item?: ConnectionItem): Promise<void> {
@@ -199,6 +211,12 @@ async function buildClient(
         }
         return undefined;
     }
+    return buildClientWith(context, connection, auth);
+}
+
+function buildClientWith(
+    context: vscode.ExtensionContext, connection: ConnectionConfig, auth: AuthProvider,
+): FusionClient {
     const settings = vscode.workspace.getConfiguration('fusionSql');
     return new FusionClient({
         baseUrl: connection.url,
@@ -277,7 +295,7 @@ async function activeConnection(context: vscode.ExtensionContext): Promise<Conne
         const choice = await vscode.window.showInformationMessage(
             'No Fusion connections yet.', 'Add Connection', 'Import connections.json',
         );
-        if (choice === 'Add Connection') { await addConnection(context); }
+        if (choice === 'Add Connection') { addConnection(context); }
         if (choice === 'Import connections.json') { await importConnections(); }
         return undefined;
     }
@@ -314,11 +332,6 @@ async function pick(item?: ConnectionItem): Promise<ConnectionConfig | undefined
         { title: 'Select a connection' },
     );
     return picked?.connection;
-}
-
-async function ask(title: string, prompt: string): Promise<string | undefined> {
-    const value = await vscode.window.showInputBox({ title, prompt, ignoreFocusOut: true });
-    return value?.trim() || undefined;
 }
 
 class ConnectionItem extends vscode.TreeItem {
