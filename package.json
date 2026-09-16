@@ -1,0 +1,257 @@
+{
+  "name": "fusion-sql",
+  "displayName": "Oracle Fusion SQL",
+  "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
+  "version": "0.1.0",
+  "publisher": "alecyriaco",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AleCyriaco/oracle-fusion-sql-vscode"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Data Science",
+    "Other"
+  ],
+  "keywords": [
+    "oracle",
+    "fusion",
+    "bi publisher",
+    "sql",
+    "erp"
+  ],
+  "activationEvents": [
+    "onLanguage:sql"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "fusionSql",
+          "title": "Oracle Fusion",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "fusionSql": [
+        {
+          "id": "fusionSql.connections",
+          "name": "Connections"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "fusionSql.addConnection",
+        "title": "Add Connection",
+        "category": "Fusion",
+        "icon": "$(add)"
+      },
+      {
+        "command": "fusionSql.importConnections",
+        "title": "Import from connections.json",
+        "category": "Fusion"
+      },
+      {
+        "command": "fusionSql.editConnection",
+        "title": "Edit Connection",
+        "category": "Fusion",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "fusionSql.removeConnection",
+        "title": "Remove Connection",
+        "category": "Fusion",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "fusionSql.signIn",
+        "title": "Sign In (SSO)",
+        "category": "Fusion",
+        "icon": "$(key)"
+      },
+      {
+        "command": "fusionSql.signOut",
+        "title": "Sign Out",
+        "category": "Fusion"
+      },
+      {
+        "command": "fusionSql.testConnection",
+        "title": "Test Connection",
+        "category": "Fusion",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "fusionSql.setActiveConnection",
+        "title": "Set as Active Connection",
+        "category": "Fusion",
+        "icon": "$(check)"
+      },
+      {
+        "command": "fusionSql.runQuery",
+        "title": "Run Query",
+        "category": "Fusion",
+        "icon": "$(play)"
+      },
+      {
+        "command": "fusionSql.refresh",
+        "title": "Refresh",
+        "category": "Fusion",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "fusionSql.addConnection",
+          "when": "view == fusionSql.connections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "fusionSql.refresh",
+          "when": "view == fusionSql.connections",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "fusionSql.setActiveConnection",
+          "when": "view == fusionSql.connections && viewItem =~ /^connection/",
+          "group": "inline@1"
+        },
+        {
+          "command": "fusionSql.testConnection",
+          "when": "view == fusionSql.connections && viewItem =~ /^connection/",
+          "group": "inline@2"
+        },
+        {
+          "command": "fusionSql.signIn",
+          "when": "view == fusionSql.connections && viewItem == connection.sso",
+          "group": "1_auth@1"
+        },
+        {
+          "command": "fusionSql.signOut",
+          "when": "view == fusionSql.connections && viewItem == connection.sso",
+          "group": "1_auth@2"
+        },
+        {
+          "command": "fusionSql.editConnection",
+          "when": "view == fusionSql.connections && viewItem =~ /^connection/",
+          "group": "2_edit@1"
+        },
+        {
+          "command": "fusionSql.removeConnection",
+          "when": "view == fusionSql.connections && viewItem =~ /^connection/",
+          "group": "2_edit@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "fusionSql.runQuery",
+          "when": "editorLangId == sql",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "fusionSql.runQuery",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == sql"
+      }
+    ],
+    "configuration": {
+      "title": "Oracle Fusion SQL",
+      "properties": {
+        "fusionSql.connections": {
+          "type": "array",
+          "default": [],
+          "description": "Fusion environments. Passwords and tokens are never stored here — they live in the OS keychain.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "url"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "description": "https://<pod>.fa.<region>.oraclecloud.com"
+              },
+              "authMode": {
+                "type": "string",
+                "enum": [
+                  "basic",
+                  "sso"
+                ],
+                "default": "basic"
+              },
+              "user": {
+                "type": "string",
+                "description": "Basic auth only."
+              },
+              "reportPath": {
+                "type": "string",
+                "description": "Pre-deployed proxy report. Required for SSO."
+              },
+              "oauth": {
+                "type": "object",
+                "properties": {
+                  "authorizeUrl": {
+                    "type": "string"
+                  },
+                  "tokenUrl": {
+                    "type": "string"
+                  },
+                  "clientId": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "fusionSql.pageSize": {
+          "type": "number",
+          "default": 200,
+          "minimum": 1,
+          "maximum": 5000,
+          "description": "Rows fetched per page."
+        },
+        "fusionSql.timeoutSeconds": {
+          "type": "number",
+          "default": 120,
+          "description": "HTTP timeout in seconds."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "node --test out/test/*.test.js",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.6.0"
+  },
+  "bugs": {
+    "url": "https://github.com/AleCyriaco/oracle-fusion-sql-vscode/issues"
+  },
+  "homepage": "https://github.com/AleCyriaco/oracle-fusion-sql-vscode#readme"
+}
