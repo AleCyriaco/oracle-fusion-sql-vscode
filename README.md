@@ -1,5 +1,9 @@
 # Oracle Fusion SQL — VS Code extension
 
+> An independent open-source project. Not affiliated with, endorsed by, or
+> sponsored by Oracle Corporation. Oracle and Oracle Fusion are trademarks of
+> Oracle Corporation.
+
 Run SQL against **Oracle Fusion Cloud** from VS Code. No JDBC, no Java, no
 SQL Developer: the extension talks to BI Publisher over HTTPS by itself.
 
@@ -67,7 +71,7 @@ the proxy report for you the first time you connect.
 **Single sign-on (OAuth 2.0)** — browser sign-in against IDCS / OCI IAM using
 Authorization Code with PKCE, so no client secret ships with the extension. You
 need an application registered in your identity domain with
-`vscode://alecyriaco.fusion-sql/auth` as a redirect URI, and its client ID.
+`vscode://AleCyriaco.fusion-sql/auth` as a redirect URI, and its client ID.
 
 > **SSO cannot deploy the proxy report.** BI Publisher's SOAP services
 > authenticate from `<v2:userID>`/`<v2:password>` *inside the request envelope*,

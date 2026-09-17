@@ -8,7 +8,6 @@ import {
 } from './connections';
 import { ResultsPanel } from './resultsPanel';
 
-const EXTENSION_ID = 'alecyriaco.fusion-sql';
 const ACTIVE_KEY = 'fusionSql.activeConnection';
 
 /**
@@ -25,7 +24,7 @@ let pendingSignIn: { state: string; resolve: (params: URLSearchParams) => void; 
 export function activate(context: vscode.ExtensionContext): void {
     log = vscode.window.createOutputChannel('Oracle Fusion SQL', { log: true });
     context.subscriptions.push(log);
-    log.info(`Activated ${EXTENSION_ID}`);
+    log.info(`Activated ${context.extension.id}`);
 
     tree = new ConnectionsProvider(context);
     context.subscriptions.push(
@@ -190,7 +189,7 @@ async function signIn(context: vscode.ExtensionContext, item?: ConnectionItem): 
     }
     const token = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: `Signing in to ${connection.name}…` },
-        () => signInInteractive(connection.oauth!, EXTENSION_ID, waitForCallback),
+        () => signInInteractive(connection.oauth!, context.extension.id, waitForCallback),
     );
     await writeToken(context.secrets, connection.name, token);
     tree.refresh();
