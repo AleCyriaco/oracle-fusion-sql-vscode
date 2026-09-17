@@ -32,6 +32,7 @@ export function activate(context: vscode.ExtensionContext): void {
     log = vscode.window.createOutputChannel('Oracle Fusion SQL', { log: true });
     context.subscriptions.push(log);
     log.info(`Activated ${context.extension.id}`);
+    void refreshAiContext(context);
 
     tree = new ConnectionsProvider(context);
     history = new History(context);
@@ -67,9 +68,35 @@ export function activate(context: vscode.ExtensionContext): void {
             item ? history.remove(item.entry.id) : undefined),
         command('fusionSql.clearHistory', () => clearHistory()),
     );
+
+    context.subscriptions.push(runStatusBarItem());
 }
 
 export function deactivate(): void { /* nothing to clean up */ }
+
+// O botão da title bar do editor é travado em 16px pelo VS Code; a barra de status
+// não é, então o caminho para deixar "Run" evidente de verdade é duplicá-lo aqui.
+function runStatusBarItem(): vscode.Disposable {
+    const item = vscode.window.createStatusBarItem('fusionSql.run', vscode.StatusBarAlignment.Left, 100);
+    item.name = 'Fusion SQL';
+    item.text = '$(play) Run Query';
+    item.tooltip = 'Run the statement at the cursor on the active Fusion connection';
+    item.command = 'fusionSql.runQuery';
+    item.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+
+    const sync = () => {
+        if (vscode.window.activeTextEditor?.document.languageId === 'sql') { item.show(); } else { item.hide(); }
+    };
+    sync();
+    return vscode.Disposable.from(
+        item,
+        vscode.window.onDidChangeActiveTextEditor(sync),
+        // Trocar a linguagem do buffer reabre o documento, então isto cobre o
+        // caso "abri um untitled e só depois marquei como SQL".
+        vscode.workspace.onDidOpenTextDocument(sync),
+    );
+}
+
 
 function command(id: string, handler: (...args: any[]) => unknown): vscode.Disposable {
     return vscode.commands.registerCommand(id, async (...args) => {
@@ -529,6 +556,19 @@ async function aiConfig(context: vscode.ExtensionContext): Promise<LlmConfig> {
     };
 }
 
+/**
+ * Drives the `fusionSql.hasAiKey` context key, which decides whether the views
+ * offer to set an AI helper up or to use it. Without this the only way in is a
+ * command nobody knows to look for.
+ */
+async function refreshAiContext(context: vscode.ExtensionContext): Promise<void> {
+    let configured = false;
+    for (const id of Object.keys(PROVIDER_LABELS) as ProviderId[]) {
+        if (await context.secrets.get(AI_KEY(id))) { configured = true; break; }
+    }
+    await vscode.commands.executeCommand('setContext', 'fusionSql.hasAiKey', configured);
+}
+
 async function setAiKey(context: vscode.ExtensionContext): Promise<void> {
     const picked = await vscode.window.showQuickPick(
         (Object.keys(PROVIDER_LABELS) as ProviderId[]).map((id) => ({
@@ -547,6 +587,7 @@ async function setAiKey(context: vscode.ExtensionContext): Promise<void> {
     });
     if (!key) { return; }
     await context.secrets.store(AI_KEY(picked.id), key.trim());
+    await refreshAiContext(context);
     // Storing a key for a provider almost always means intending to use it.
     if (picked.id !== aiProvider()) {
         const choice = await vscode.window.showInformationMessage(
@@ -565,6 +606,7 @@ async function clearAiKey(context: vscode.ExtensionContext): Promise<void> {
     for (const id of Object.keys(PROVIDER_LABELS) as ProviderId[]) {
         await context.secrets.delete(AI_KEY(id));
     }
+    await refreshAiContext(context);
     void vscode.window.showInformationMessage('Stored AI API keys removed.');
 }
 

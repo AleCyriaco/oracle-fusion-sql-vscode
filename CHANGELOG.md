@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- **The AI helper is findable now.** Setting it up was a command you had to know
+  the name of. The Query History view offers **Add AI Helper (API Key)** until a
+  key is stored, explains in a sentence what it does, and then offers
+  **Generate Query with AI** instead. Both are also buttons in the view toolbars.
+- Panel buttons carry an icon, sit on a comfortable click target rather than the
+  browser default, and every one has a tooltip saying what it will do.
+- Command titles were reworded to read well as hover tooltips on the toolbar and
+  context-menu icons.
+
 ## 0.4.1
 
 - **Fixed:** a semicolon inside a comment split the statement, so only the

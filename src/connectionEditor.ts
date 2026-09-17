@@ -240,10 +240,10 @@ function html(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   <div id="status" hidden></div>
 
   <div id="actions">
-    <button type="button" id="test" class="secondary">Test Connection</button>
+    <button type="button" id="test" class="secondary" title="Try these values now, including a password you have not saved yet"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 1v4H3.5v3A3.5 3.5 0 007 11.4V15h2v-3.6A3.5 3.5 0 0012.5 8V5H11V1H9.4v4H6.6V1H5z"/></svg><span>Test Connection</span></button>
     <span class="spacer"></span>
-    <button type="button" id="cancel" class="secondary">Cancel</button>
-    <button type="button" id="save" class="primary">Save</button>
+    <button type="button" id="cancel" class="secondary" title="Discard changes (Esc)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.1 3l3.9 4 3.9-4 1.1 1.1-4 3.9 4 3.9-1.1 1.1-3.9-4-3.9 4L3 11.9l4-3.9-4-3.9L4.1 3z"/></svg><span>Cancel</span></button>
+    <button type="button" id="save" class="primary" title="Save the connection (Enter)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h9.2L14 4.8V14H2V2zm2 1.6V7h6V3.6H4zm4 5.2a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4z"/></svg><span>Save</span></button>
   </div>
 </form>
 <script nonce="${nonce}" src="${script}"></script>

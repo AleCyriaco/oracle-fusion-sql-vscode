@@ -44,15 +44,32 @@ textarea:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -
 #actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
 .spacer { flex: 1 1 auto; }
 
+/* Buttons carry an icon and a label, sized for a comfortable click target
+   rather than the browser default, which is smaller than anything else in
+   the editor chrome. Every one has a title, so hovering explains it. */
 button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     font-family: inherit;
     font-size: inherit;
+    line-height: 1;
     border: none;
-    border-radius: 2px;
-    padding: 5px 14px;
+    border-radius: 3px;
+    padding: 8px 14px;
+    min-height: 32px;
     cursor: pointer;
 }
-button:disabled { opacity: .5; cursor: default; }
+
+button svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    fill: currentColor;
+}
+
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 
 .primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
 .primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }

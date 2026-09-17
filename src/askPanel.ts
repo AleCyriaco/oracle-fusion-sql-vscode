@@ -105,10 +105,10 @@ function html(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   placeholder="e.g. unpaid supplier invoices over 10.000 due in the next 30 days, with supplier name"></textarea>
 
 <div id="actions">
-  <button type="button" id="generate" class="primary">Generate</button>
+  <button type="button" id="generate" class="primary" title="Ask the model for a statement (Enter in the box above does the same)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1l1.6 3.9L13.5 6.5 9.6 8.1 8 12 6.4 8.1 2.5 6.5l3.9-1.6L8 1zm4.5 7.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8.8-1.9z"/></svg><span>Generate</span></button>
   <span class="spacer"></span>
-  <button type="button" id="insert" class="secondary" disabled>Insert into Editor</button>
-  <button type="button" id="run" class="secondary" disabled>Run</button>
+  <button type="button" id="insert" class="secondary" title="Put this statement into the active SQL editor"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1v8.6l3-3 1 1.1-4.8 4.8L2.4 7.7l1-1.1 3 3V1h1.6zM2 13.4h12V15H2v-1.6z"/></svg><span>Insert into Editor</span></button>
+  <button type="button" id="run" class="secondary" title="Open the statement in a new editor and run it"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.2l9.5 5.8L4 13.8V2.2z"/></svg><span>Run</span></button>
 </div>
 
 <div id="status" hidden></div>

@@ -114,10 +114,11 @@ the Fusion conventions that trip people up — `_ALL` multi-org tables, `_B`/`_T
 translations, date-effective `_F`/`_M` rows — along with the usual table names
 across Payables, Receivables, GL, Purchasing, Inventory, Projects, Assets and HCM.
 
-Bring your own key:
+Bring your own key — **Add AI Helper (API Key)**, offered in the Query History
+view until one is stored, or from the view toolbar:
 
 ```
-Fusion: Set AI API Key
+Fusion: Add AI Helper (API Key)
 ```
 
 | Provider | Default model | Notes |

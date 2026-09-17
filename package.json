@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {
@@ -59,13 +59,19 @@
         "command": "fusionSql.newQuery",
         "title": "New Query",
         "category": "Fusion",
-        "icon": "$(new-file)"
+        "icon": {
+          "light": "media/icons/new-query-light.svg",
+          "dark": "media/icons/new-query-dark.svg"
+        }
       },
       {
         "command": "fusionSql.addConnection",
         "title": "New Connection",
         "category": "Fusion",
-        "icon": "$(add)"
+        "icon": {
+          "light": "media/icons/add-connection-light.svg",
+          "dark": "media/icons/add-connection-dark.svg"
+        }
       },
       {
         "command": "fusionSql.importConnections",
@@ -117,13 +123,19 @@
         "command": "fusionSql.runQuery",
         "title": "Run Query",
         "category": "Fusion",
-        "icon": "$(play)"
+        "icon": {
+          "light": "media/icons/run-light.svg",
+          "dark": "media/icons/run-dark.svg"
+        }
       },
       {
         "command": "fusionSql.refresh",
-        "title": "Refresh",
+        "title": "Refresh Connections",
         "category": "Fusion",
-        "icon": "$(refresh)"
+        "icon": {
+          "light": "media/icons/refresh-light.svg",
+          "dark": "media/icons/refresh-dark.svg"
+        }
       },
       {
         "command": "fusionSql.showLog",
@@ -134,11 +146,14 @@
         "command": "fusionSql.generateQuery",
         "title": "Generate Query with AI",
         "category": "Fusion",
-        "icon": "$(sparkle)"
+        "icon": {
+          "light": "media/icons/generate-light.svg",
+          "dark": "media/icons/generate-dark.svg"
+        }
       },
       {
         "command": "fusionSql.setAiKey",
-        "title": "Set AI API Key",
+        "title": "Add AI Helper (API Key)",
         "category": "Fusion"
       },
       {
@@ -190,9 +205,14 @@
           "group": "navigation@2"
         },
         {
+          "command": "fusionSql.generateQuery",
+          "when": "view == fusionSql.connections",
+          "group": "navigation@3"
+        },
+        {
           "command": "fusionSql.refresh",
           "when": "view == fusionSql.connections",
-          "group": "navigation@2"
+          "group": "navigation@4"
         },
         {
           "command": "fusionSql.importConnections",
@@ -200,9 +220,29 @@
           "group": "1_import@1"
         },
         {
-          "command": "fusionSql.clearHistory",
+          "command": "fusionSql.setAiKey",
+          "when": "view == fusionSql.connections",
+          "group": "2_ai@1"
+        },
+        {
+          "command": "fusionSql.clearAiKey",
+          "when": "view == fusionSql.connections",
+          "group": "2_ai@2"
+        },
+        {
+          "command": "fusionSql.showLog",
+          "when": "view == fusionSql.connections",
+          "group": "3_help@1"
+        },
+        {
+          "command": "fusionSql.generateQuery",
           "when": "view == fusionSql.history",
           "group": "navigation@1"
+        },
+        {
+          "command": "fusionSql.clearHistory",
+          "when": "view == fusionSql.history",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -401,6 +441,12 @@
       },
       {
         "view": "fusionSql.history",
+        "when": "!fusionSql.hasAiKey",
+        "contents": "Queries you run appear here.\n\nLet a language model draft them for you — describe what you need in plain words and get Oracle SQL written for Fusion. Bring a key from Anthropic, OpenAI, or any OpenAI-compatible endpoint; it is kept in the OS keychain.\n[Add AI Helper (API Key)](command:fusionSql.setAiKey)"
+      },
+      {
+        "view": "fusionSql.history",
+        "when": "fusionSql.hasAiKey",
         "contents": "Queries you run appear here.\n[Generate Query with AI](command:fusionSql.generateQuery)"
       }
     ]
