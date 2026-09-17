@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0
+
+- **Generated statements are checked before you get them.** A model writing SQL
+  for a schema it cannot see will occasionally invent a table or a column, and
+  the result looks plausible until it is run. Each statement is now executed as
+  a single-row page against the active connection; Oracle resolves every
+  identifier and names the offending one when it objects
+  (`ORA-00904: "X": invalid identifier`), and that error goes back to the model
+  to be corrected. Up to three attempts, then it is handed over marked as
+  unverified rather than withheld.
+- The panel says what happened: *Runs on FUSION-DEV · 7 columns*, or the error
+  it could not get past.
+- **Copy** and **Save…** join Insert and Run.
+- `fusionSql.ai.validate` turns the check off for anyone who would rather not
+  spend the round trip.
+
 ## 0.5.1
 
 - **xAI (Grok) and DeepSeek** join Anthropic and OpenAI as providers for query

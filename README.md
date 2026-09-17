@@ -105,8 +105,25 @@ hold only the host, username and report path, so they stay safe to sync.
 
 **Fusion: Generate Query with AI** (or the ✨ button on a SQL editor) opens a
 panel: describe what you want, get a statement, then keep asking for changes —
-each follow-up edits the statement rather than starting over. Insert it into the
-editor or run it straight away.
+each follow-up edits the statement rather than starting over. Copy it, save it
+to a file, insert it into the editor, or run it straight away.
+
+**The statement is checked before you get it.** A model writing SQL for a schema
+it cannot see will occasionally invent a table or a column, and the result looks
+perfectly plausible until it is run. So the extension runs it — a single-row page
+against your active connection. Oracle resolves every identifier and, when it
+objects, names the offending one:
+
+```
+ORA-00904: "COLUNA_QUE_NAO_EXISTE": invalid identifier
+```
+
+That error goes straight back to the model, which corrects that identifier
+rather than rewriting the query. Up to three attempts, then the statement is
+handed over anyway — marked as unverified, because you may know something the
+model does not. The panel says which happened: *Runs on FUSION-DEV · 7 columns*,
+or the error it could not get past. Turn the whole thing off with
+`fusionSql.ai.validate` if you would rather not spend the round trip.
 
 The model is told what it needs to know to be useful here: Oracle dialect rather
 than generic SQL, `SELECT` only, no hand-written paging (the client adds it), and
@@ -150,6 +167,7 @@ statement being edited.
 | `fusionSql.ai.model` | Model id; blank uses the provider default. |
 | `fusionSql.ai.baseUrl` | Endpoint for the `compatible` provider. |
 | `fusionSql.ai.timeoutSeconds` | How long to wait for the model (default 90). |
+| `fusionSql.ai.validate` | Run a generated statement before handing it over, and send any database error back to be fixed (default on). |
 
 ```jsonc
 "fusionSql.connections": [

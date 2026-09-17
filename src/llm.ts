@@ -113,7 +113,28 @@ export type GenerateOptions = {
     request: string;
     /** The statement being edited, when the user wants it changed rather than replaced. */
     current?: string;
+    /**
+     * The database's own complaint about `current`, when a previous attempt was
+     * rejected. Passing it verbatim is what lets the model fix an identifier it
+     * guessed wrong — ORA-00904 names the offending column.
+     */
+    databaseError?: string;
 };
+
+export function buildPrompt(options: GenerateOptions): string {
+    const current = options.current?.trim();
+    if (current && options.databaseError) {
+        return `This statement was rejected by the database:\n\n${current}\n\n`
+            + `The database said:\n\n${options.databaseError}\n\n`
+            + `Fix it. The original request was: ${options.request}\n`
+            + 'Oracle names the offending object in the error — correct that identifier rather '
+            + 'than rewriting the query, and do not invent a table or column to work around it.';
+    }
+    if (current) {
+        return `Current statement:\n\n${current}\n\nChange it so that: ${options.request}`;
+    }
+    return options.request;
+}
 
 export async function generateSql(config: LlmConfig, options: GenerateOptions): Promise<string> {
     if (!config.apiKey) {
@@ -123,9 +144,7 @@ export async function generateSql(config: LlmConfig, options: GenerateOptions): 
             + `Run "Fusion: Add AI Helper (API Key)"${where ? ` — get one at ${where}` : ''}.`,
         );
     }
-    const prompt = options.current?.trim()
-        ? `Current statement:\n\n${options.current.trim()}\n\nChange it so that: ${options.request}`
-        : options.request;
+    const prompt = buildPrompt(options);
 
     const raw = config.provider === 'anthropic'
         ? await callAnthropic(config, prompt)
@@ -254,4 +273,16 @@ export function cleanSql(text: string): string {
     const fence = /^```(?:[a-zA-Z]*)\n([\s\S]*?)\n?```$/.exec(sql);
     if (fence) { sql = fence[1]; }
     return sql.trim().replace(/;+\s*$/, '');
+}
+
+/**
+ * The part of a failure worth showing a person — and worth sending back to the
+ * model. BI Publisher wraps the database error in several layers of Java
+ * exception text; the ORA- line inside is the whole diagnosis, and it names the
+ * table or column that was wrong.
+ */
+export function firstOracleError(message: string): string {
+    const ora = /ORA-\d{5}[^\n]*/.exec(message);
+    if (ora) { return ora[0].trim(); }
+    return message.split('\n')[0].slice(0, 200);
 }

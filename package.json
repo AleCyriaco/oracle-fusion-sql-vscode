@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {
@@ -435,6 +435,11 @@
           "type": "number",
           "default": 90,
           "description": "How long to wait for the model."
+        },
+        "fusionSql.ai.validate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run a generated statement against the active connection before handing it over, and send any database error back to the model to be corrected. Costs one round trip per attempt."
         }
       }
     },

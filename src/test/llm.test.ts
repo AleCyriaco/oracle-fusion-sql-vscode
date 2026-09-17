@@ -1,8 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import {
-    chatCompletionsUrl, cleanSql, DEFAULT_MODELS, PROVIDER_BASE_URLS, PROVIDER_KEY_URLS,
-    PROVIDER_LABELS,
+    buildPrompt, chatCompletionsUrl, cleanSql, DEFAULT_MODELS, firstOracleError, PROVIDER_BASE_URLS,
+    PROVIDER_KEY_URLS, PROVIDER_LABELS,
 } from '../llm';
 
 test('cleanSql strips a fenced block the model added anyway', () => {
@@ -72,4 +72,40 @@ test('a compatible endpoint uses the configured URL, and insists on having one',
     assert.equal(chatCompletionsUrl({ provider: 'compatible', baseUrl: 'http://localhost:11434/v1/' }),
         'http://localhost:11434/v1/chat/completions');
     assert.throws(() => chatCompletionsUrl({ provider: 'compatible' }), /baseUrl/);
+});
+
+test('firstOracleError digs the ORA- line out of BI Publisher wrapping', () => {
+    const wrapped = 'runReport failed: PublicReportService::generateReport for reportAbsolutePath '
+        + '[/~USER/FusionQuery/v1/csv.xdo] failed: due to oracle.xdo.server.ServerException: '
+        + 'oracle.xdo.servlet.data.DataException: java.sql.SQLSyntaxErrorException: '
+        + 'ORA-00942: table or view does not exist\nORA-06512: at line 5';
+    assert.equal(firstOracleError(wrapped), 'ORA-00942: table or view does not exist');
+});
+
+test('firstOracleError falls back to the first line when nothing is Oracle', () => {
+    assert.equal(firstOracleError('Timed out after 120s.\nstack frame'), 'Timed out after 120s.');
+});
+
+test('a fresh request is sent as the user wrote it', () => {
+    assert.equal(buildPrompt({ request: 'ten suppliers' }), 'ten suppliers');
+});
+
+test('a follow-up carries the statement so it reads as an edit', () => {
+    const prompt = buildPrompt({ request: 'group by supplier', current: 'SELECT 1 FROM dual' });
+    assert.match(prompt, /Current statement:/);
+    assert.match(prompt, /SELECT 1 FROM dual/);
+    assert.match(prompt, /group by supplier/);
+});
+
+test('a rejected statement is sent back with the database error verbatim', () => {
+    const prompt = buildPrompt({
+        request: 'ten users',
+        current: 'SELECT * FROM per_userz',
+        databaseError: 'ORA-00942: table or view does not exist',
+    });
+    assert.match(prompt, /rejected by the database/);
+    assert.match(prompt, /SELECT \* FROM per_userz/);
+    assert.match(prompt, /ORA-00942/);
+    // The instruction that keeps a repair narrow instead of a rewrite.
+    assert.match(prompt, /correct that identifier/);
 });

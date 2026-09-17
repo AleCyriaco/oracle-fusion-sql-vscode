@@ -91,3 +91,18 @@ button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-off
 }
 #status.error { border-left-color: var(--vscode-errorForeground); }
 #status.busy { opacity: .75; }
+
+/* The outcome of the check, stated plainly: a statement that has actually run
+   is worth distinguishing from one that merely looks right. */
+#verdict {
+    margin: 12px 0 0;
+    padding: 8px 12px;
+    border-radius: 2px;
+    font-size: .95em;
+    line-height: 1.45;
+    border-left: 3px solid transparent;
+    background: var(--vscode-editorWidget-background);
+}
+#verdict.ok      { border-left-color: var(--vscode-testing-iconPassed, #3fb950); }
+#verdict.failed  { border-left-color: var(--vscode-errorForeground); }
+#verdict.skipped { border-left-color: var(--vscode-editorWarning-foreground, #cca700); opacity: .85; }

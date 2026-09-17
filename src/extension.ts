@@ -9,8 +9,10 @@ import {
 import { ResultsPanel } from './resultsPanel';
 import { isBlankStatement, splitStatements } from './protocol';
 import { History, HistoryItem, HistoryProvider } from './history';
-import { AskPanel } from './askPanel';
-import { DEFAULT_MODELS, LlmConfig, PROVIDER_LABELS, ProviderId, generateSql } from './llm';
+import { AskPanel, AskProgress, AskResult } from './askPanel';
+import {
+    DEFAULT_MODELS, LlmConfig, PROVIDER_LABELS, ProviderId, firstOracleError, generateSql,
+} from './llm';
 
 const ACTIVE_KEY = 'fusionSql.activeConnection';
 
@@ -622,20 +624,18 @@ async function generateQuery(context: vscode.ExtensionContext): Promise<void> {
 
     const editor = vscode.window.activeTextEditor;
     const seed = editor?.document.languageId === 'sql' ? statementAtCursor(editor).trim() : '';
+    // Resolved up front so the panel can say which environment it checks against.
+    const connection = listConnections().find(
+        (c) => c.name === context.globalState.get<string>(ACTIVE_KEY)) ?? listConnections()[0];
 
     AskPanel.show(context.extensionUri, {
         describeProvider: () => {
             const model = config.model || DEFAULT_MODELS[config.provider];
             return `${PROVIDER_LABELS[config.provider]}${model ? ` · ${model}` : ''}`;
         },
-        generate: async (request, current) => {
-            log.info(`> generate (${config.provider}): ${request.slice(0, 120)}`);
-            // Re-read the key each time: it may have been set from the warning above.
-            const fresh = await aiConfig(context);
-            const sql = await generateSql(fresh, { request, current });
-            log.info(`< generate: ${sql.length} chars`);
-            return sql;
-        },
+        generate: async (request, current, report) => generateAndValidate(
+            context, connection, request, current, report),
+
         insert: async (sql) => {
             const target = vscode.window.activeTextEditor;
             if (target && target.document.languageId === 'sql') {
@@ -656,5 +656,80 @@ async function generateQuery(context: vscode.ExtensionContext): Promise<void> {
             await vscode.window.showTextDocument(document);
             await runQuery(context);
         },
+        copy: async (sql) => {
+            await vscode.env.clipboard.writeText(sql);
+            void vscode.window.showInformationMessage('Statement copied.');
+        },
+        save: async (sql) => {
+            const target = await vscode.window.showSaveDialog({
+                filters: { 'SQL': ['sql'] },
+                saveLabel: 'Save',
+                defaultUri: vscode.Uri.file('query.sql'),
+            });
+            if (!target) { return; }
+            await vscode.workspace.fs.writeFile(target, Buffer.from(`${sql}\n`, 'utf8'));
+            void vscode.window.showInformationMessage(`Saved ${target.path.split('/').pop()}.`);
+        },
     }, seed || undefined);
+}
+
+/** How many times a rejected statement is sent back to be fixed. */
+const REPAIR_ATTEMPTS = 3;
+
+/**
+ * Generate a statement and prove it runs before handing it over.
+ *
+ * A model writing SQL for a schema it cannot see will occasionally invent a
+ * table or a column, and the result looks perfectly plausible until it is run.
+ * Executing a single-row page settles it: Oracle resolves every identifier, and
+ * when it objects it names the offending one — which is exactly what the model
+ * needs to fix it. Cheaper than making the user discover the mistake.
+ */
+async function generateAndValidate(
+    context: vscode.ExtensionContext,
+    connection: ConnectionConfig | undefined,
+    request: string,
+    current: string | undefined,
+    report: (progress: AskProgress) => void,
+): Promise<AskResult> {
+    const validate = vscode.workspace.getConfiguration('fusionSql').get<boolean>('ai.validate') ?? true;
+
+    report({ kind: 'thinking' });
+    const config = await aiConfig(context);
+    log.info(`> generate (${config.provider}): ${request.slice(0, 120)}`);
+    let sql = await generateSql(config, { request, current });
+
+    if (!validate) { return { sql }; }
+    if (!connection) {
+        return { sql, note: 'Not checked — no connection is configured.' };
+    }
+    const client = await buildClient(context, connection);
+    if (!client) {
+        return { sql, note: `Not checked — no credentials for ${connection.name}.` };
+    }
+
+    let lastError = '';
+    for (let attempt = 1; attempt <= REPAIR_ATTEMPTS; attempt++) {
+        report({ kind: 'validating', connection: connection.name, attempt, attempts: REPAIR_ATTEMPTS });
+        try {
+            const page = await client.query(sql, 0, 1);
+            log.info(`< generate: validated on ${connection.name}, ${page.columns.length} column(s)`);
+            return {
+                sql,
+                validated: true,
+                note: `Runs on ${connection.name} · ${page.columns.length} column(s)`
+                    + (page.rows.length === 0 ? ' · no rows matched' : ''),
+            };
+        } catch (error) {
+            lastError = error instanceof Error ? error.message : String(error);
+            log.warn(`validation failed (attempt ${attempt}): ${lastError.split('\n')[0]}`);
+            if (attempt === REPAIR_ATTEMPTS) { break; }
+            report({ kind: 'repairing', error: firstOracleError(lastError), attempt: attempt + 1, attempts: REPAIR_ATTEMPTS });
+            sql = await generateSql(config, { request, current: sql, databaseError: lastError });
+        }
+    }
+
+    // Hand it over anyway: a statement that failed to validate is still a
+    // starting point, and the user may know something the model does not.
+    return { sql, validated: false, note: `Did not run on ${connection.name}: ${firstOracleError(lastError)}` };
 }
