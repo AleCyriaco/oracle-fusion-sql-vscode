@@ -43,11 +43,19 @@ test('every provider is fully described, and only the compatible one is blank', 
     assert.equal(PROVIDER_BASE_URLS.compatible, '', 'a compatible endpoint has no fixed address');
 });
 
-test('the OpenAI-shaped providers point at their own endpoints', () => {
+test('the OpenAI-shaped providers point where their own docs say', () => {
+    // Endpoints taken from each provider's quickstart, not inferred from OpenAI's.
+    assert.equal(PROVIDER_BASE_URLS.openai, 'https://api.openai.com/v1');
     assert.equal(PROVIDER_BASE_URLS.xai, 'https://api.x.ai/v1');
-    assert.equal(PROVIDER_BASE_URLS.deepseek, 'https://api.deepseek.com/v1');
-    assert.equal(DEFAULT_MODELS.xai, 'grok-4');
-    assert.equal(DEFAULT_MODELS.deepseek, 'deepseek-chat');
+    assert.equal(PROVIDER_BASE_URLS.deepseek, 'https://api.deepseek.com',
+        'DeepSeek serves chat completions at the root, not under /v1');
+});
+
+test('default models are the current flagships', () => {
+    assert.equal(DEFAULT_MODELS.anthropic, 'claude-opus-5');
+    assert.equal(DEFAULT_MODELS.openai, 'gpt-5.6-sol');
+    assert.equal(DEFAULT_MODELS.xai, 'grok-4.6');
+    assert.equal(DEFAULT_MODELS.deepseek, 'deepseek-v4-pro');
 });
 
 test('each provider posts to its own endpoint', () => {
@@ -56,7 +64,7 @@ test('each provider posts to its own endpoint', () => {
     assert.equal(chatCompletionsUrl({ provider: 'xai' }),
         'https://api.x.ai/v1/chat/completions');
     assert.equal(chatCompletionsUrl({ provider: 'deepseek' }),
-        'https://api.deepseek.com/v1/chat/completions');
+        'https://api.deepseek.com/chat/completions');
 });
 
 test('a base URL left over from another provider is ignored', () => {
@@ -65,7 +73,7 @@ test('a base URL left over from another provider is ignored', () => {
     assert.equal(chatCompletionsUrl({ provider: 'xai', baseUrl: 'http://localhost:11434/v1' }),
         'https://api.x.ai/v1/chat/completions');
     assert.equal(chatCompletionsUrl({ provider: 'deepseek', baseUrl: 'https://evil.example/v1' }),
-        'https://api.deepseek.com/v1/chat/completions');
+        'https://api.deepseek.com/chat/completions');
 });
 
 test('a compatible endpoint uses the configured URL, and insists on having one', () => {

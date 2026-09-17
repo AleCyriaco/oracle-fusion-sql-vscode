@@ -141,13 +141,14 @@ Fusion: Add AI Helper (API Key)
 | Provider | Default model | Endpoint |
 |---|---|---|
 | Anthropic | `claude-opus-5` | `api.anthropic.com` |
-| OpenAI | `gpt-4o` | `api.openai.com` |
-| xAI (Grok) | `grok-4` | `api.x.ai` |
-| DeepSeek | `deepseek-chat` | `api.deepseek.com` |
+| OpenAI | `gpt-5.6-sol` | `api.openai.com/v1` |
+| xAI (Grok) | `grok-4.6` | `api.x.ai/v1` |
+| DeepSeek | `deepseek-v4-pro` | `api.deepseek.com` |
 | OpenAI-compatible | *(set one)* | your own — Azure OpenAI, OpenRouter, Ollama, vLLM, via `fusionSql.ai.baseUrl` |
 
-Change the model with `fusionSql.ai.model`; a model that no longer exists comes
-back as a plain "not found" naming that setting. `fusionSql.ai.baseUrl` applies
+Change the model with `fusionSql.ai.model`. Model ids drift faster than anything
+else here, so these are only defaults — a provider that answers 404 gives a plain
+"not found" naming that setting, and nothing needs reinstalling to move on. `fusionSql.ai.baseUrl` applies
 only to the compatible provider — the named ones always use their own endpoint,
 so a setting left over from another provider cannot send your key elsewhere.
 

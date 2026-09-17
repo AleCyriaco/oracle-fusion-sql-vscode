@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {
@@ -424,7 +424,7 @@
         "fusionSql.ai.model": {
           "type": "string",
           "default": "",
-          "description": "Model id. Blank uses the provider default: claude-opus-5, gpt-4o, grok-4, deepseek-chat. Required for a compatible endpoint."
+          "description": "Model id. Blank uses the provider default: claude-opus-5, gpt-5.6-sol, grok-4.6, deepseek-v4-pro. Required for a compatible endpoint."
         },
         "fusionSql.ai.baseUrl": {
           "type": "string",

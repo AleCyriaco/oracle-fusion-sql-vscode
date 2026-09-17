@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1
+
+- Default models corrected against each provider's own quickstart: `gpt-5.6-sol`
+  (was `gpt-4o`), `grok-4.6` (was `grok-4`), `deepseek-v4-pro` (was
+  `deepseek-chat`). All three had been written from memory and were stale.
+- DeepSeek's endpoint is `api.deepseek.com`, not `api.deepseek.com/v1` — it
+  serves chat completions at the root.
+
 ## 0.6.0
 
 - **Generated statements are checked before you get them.** A model writing SQL

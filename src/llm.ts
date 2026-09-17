@@ -19,11 +19,19 @@ export type LlmConfig = {
     timeoutMs: number;
 };
 
+/**
+ * The flagship each provider documents for work like this. Model ids drift
+ * faster than anything else here, so they are only defaults: a provider that
+ * answers 404 gets an error naming `fusionSql.ai.model`, and nothing needs
+ * reinstalling to move on.
+ *
+ * Checked against the providers' own quickstarts, 2026-09-17.
+ */
 export const DEFAULT_MODELS: Record<ProviderId, string> = {
     anthropic: 'claude-opus-5',
-    openai: 'gpt-4o',
-    xai: 'grok-4',
-    deepseek: 'deepseek-chat',
+    openai: 'gpt-5.6-sol',
+    xai: 'grok-4.6',
+    deepseek: 'deepseek-v4-pro',
     compatible: '',
 };
 
@@ -42,9 +50,11 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
  */
 export const PROVIDER_BASE_URLS: Record<ProviderId, string> = {
     anthropic: 'https://api.anthropic.com',
+    // Chat Completions remains supported alongside the newer Responses API.
     openai: 'https://api.openai.com/v1',
     xai: 'https://api.x.ai/v1',
-    deepseek: 'https://api.deepseek.com/v1',
+    // DeepSeek serves chat completions at the root, not under /v1.
+    deepseek: 'https://api.deepseek.com',
     compatible: '',
 };
 
