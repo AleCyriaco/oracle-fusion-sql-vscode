@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "publisher": "alecyriaco",
   "license": "MIT",
   "repository": {
@@ -22,7 +22,10 @@
     "fusion",
     "bi publisher",
     "sql",
-    "erp"
+    "erp",
+    "bip",
+    "fusion cloud",
+    "jdbc"
   ],
   "activationEvents": [
     "onLanguage:sql",
@@ -302,5 +305,16 @@
   "bugs": {
     "url": "https://github.com/AleCyriaco/oracle-fusion-sql-vscode/issues"
   },
-  "homepage": "https://github.com/AleCyriaco/oracle-fusion-sql-vscode#readme"
+  "homepage": "https://github.com/AleCyriaco/oracle-fusion-sql-vscode#readme",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1C2536",
+    "theme": "dark"
+  },
+  "qna": "marketplace",
+  "badges": [],
+  "extensionKind": [
+    "workspace",
+    "ui"
+  ]
 }
