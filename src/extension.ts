@@ -7,6 +7,7 @@ import {
     passwordKey, resolveAuth, saveConnection, tokenKey, writeToken,
 } from './connections';
 import { ResultsPanel } from './resultsPanel';
+import { isBlankStatement, splitStatements } from './protocol';
 import { History, HistoryItem, HistoryProvider } from './history';
 import { AskPanel } from './askPanel';
 import { DEFAULT_MODELS, LlmConfig, PROVIDER_LABELS, ProviderId, generateSql } from './llm';
@@ -311,6 +312,11 @@ async function runQuery(context: vscode.ExtensionContext): Promise<void> {
 
     const sql = statementAtCursor(editor);
     if (!sql.trim()) { throw new Error('No statement under the cursor.'); }
+    if (isBlankStatement(sql)) {
+        // Sending comment-only text reaches the database and comes back as
+        // ORA-00900, which tells the user nothing about what to do.
+        throw new Error('That statement is only a comment — put the cursor on the query itself.');
+    }
     log.info(`Statement: ${sql.trim().replace(/\s+/g, ' ').slice(0, 120)}`);
 
     const connection = await activeConnection(context);
@@ -359,13 +365,12 @@ export function statementAtCursor(editor: vscode.TextEditor): string {
     if (!editor.selection.isEmpty) { return editor.document.getText(editor.selection); }
     const text = editor.document.getText();
     const cursor = editor.document.offsetAt(editor.selection.active);
-    const statements: { start: number; end: number }[] = [];
-    let start = 0;
-    for (let i = 0; i < text.length; i++) {
-        if (text[i] === ';') { statements.push({ start, end: i }); start = i + 1; }
-    }
-    statements.push({ start, end: text.length });
-    const hit = statements.find((s) => cursor >= s.start && cursor <= s.end)
+    const statements = splitStatements(text);
+    // Prefer a statement with something in it: the cursor often sits on the
+    // comment above a query, or in the blank line after a semicolon.
+    const hit = statements.find((s) => cursor >= s.start && cursor <= s.end
+            && !isBlankStatement(text.slice(s.start, s.end)))
+        ?? statements.find((s) => cursor >= s.start && cursor <= s.end)
         ?? statements[statements.length - 1];
     return text.slice(hit.start, hit.end);
 }

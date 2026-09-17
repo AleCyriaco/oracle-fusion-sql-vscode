@@ -2,8 +2,8 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
 import {
-    detectDelimiter, encodeSql, normalizeBaseUrl, paginate, parseCsv, reportRunBody, runUrl, toCsv,
-    defaultReportPath,
+    detectDelimiter, encodeSql, isBlankStatement, maskLiterals, normalizeBaseUrl, paginate, parseCsv,
+    reportRunBody, runUrl, splitStatements, toCsv, defaultReportPath,
 } from '../protocol';
 import { elementText, escapeXml } from '../soap';
 
@@ -126,4 +126,46 @@ test('a comma inside a pipe-delimited value stays part of the value', () => {
 test('toCsv quotes whatever the chosen delimiter is', () => {
     assert.equal(toCsv(['A'], [{ A: 'x|y' }], '|'), 'A\r\n"x|y"');
     assert.equal(toCsv(['A'], [{ A: 'x|y' }], ','), 'A\r\nx|y');
+});
+
+test('paginate is not fooled by the comment the generator writes above a query', () => {
+    // The system prompt asks the model for a leading comment, so this is the
+    // shape almost every generated statement arrives in.
+    assert.equal(
+        paginate('-- unpaid invoices\nSELECT * FROM ap_invoices_all', 0, 200),
+        '-- unpaid invoices\nSELECT * FROM ap_invoices_all OFFSET 0 ROWS FETCH NEXT 200 ROWS ONLY',
+    );
+    assert.equal(
+        paginate('/* block */ WITH x AS (SELECT 1 FROM dual) SELECT * FROM x', 0, 50),
+        '/* block */ WITH x AS (SELECT 1 FROM dual) SELECT * FROM x OFFSET 0 ROWS FETCH NEXT 50 ROWS ONLY',
+    );
+});
+
+test('paginate ignores OFFSET or FETCH that only appears inside a literal', () => {
+    const sql = "SELECT 'fetch next 5 rows only' AS note FROM dual";
+    assert.equal(paginate(sql, 0, 10), `${sql} OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY`);
+});
+
+test('maskLiterals blanks comments and strings but keeps offsets', () => {
+    const sql = "SELECT 'a;b' /* x; */ FROM t -- y;\nWHERE 1=1";
+    const masked = maskLiterals(sql);
+    assert.equal(masked.length, sql.length, 'offsets must line up');
+    assert.equal(masked.indexOf(';'), -1, 'no semicolon should survive masking');
+    assert.match(masked, /SELECT/);
+    assert.match(masked, /WHERE 1=1/);
+});
+
+test('splitStatements only breaks on semicolons that end a statement', () => {
+    const sql = "-- first; not a break\nSELECT 1 FROM dual;\nSELECT ';' FROM dual";
+    const parts = splitStatements(sql).map((p) => sql.slice(p.start, p.end).trim());
+    assert.equal(parts.length, 2, `expected 2 statements, got ${JSON.stringify(parts)}`);
+    assert.match(parts[0], /^-- first; not a break\nSELECT 1 FROM dual$/);
+    assert.match(parts[1], /^SELECT ';' FROM dual$/);
+});
+
+test('isBlankStatement recognises text that carries no statement', () => {
+    assert.equal(isBlankStatement('-- just a comment'), true);
+    assert.equal(isBlankStatement('/* only\n   a block */\n\n'), true);
+    assert.equal(isBlankStatement('   \n\t '), true);
+    assert.equal(isBlankStatement('-- comment\nSELECT 1 FROM dual'), false);
 });

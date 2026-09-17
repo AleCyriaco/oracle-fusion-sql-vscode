@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1
+
+- **Fixed:** a semicolon inside a comment split the statement, so only the
+  comment was sent and the database answered `ORA-00900: invalid SQL statement`
+  — which says nothing about the cause. Statements are now split on semicolons
+  that actually end a statement, ignoring those inside comments and string
+  literals.
+- **Fixed:** pagination was skipped whenever a statement began with a comment —
+  the shape almost every generated query arrives in, since the generator is
+  asked to explain itself on the first line. `OFFSET`/`FETCH` was silently not
+  applied and the whole result set came back.
+- Comment-only text is now refused up front, with a message that says where to
+  put the cursor.
+
 ## 0.4.0
 
 - **Query history.** Every run is recorded — statement, connection, row count,

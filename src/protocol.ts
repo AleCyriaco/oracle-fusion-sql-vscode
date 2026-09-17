@@ -16,17 +16,86 @@ export function encodeSql(sql: string): string {
 }
 
 /**
+ * Everything outside comments and quoted strings, with each removed region
+ * replaced by a space so offsets are preserved. Used to reason about a
+ * statement's structure without being fooled by its contents — a `;` inside a
+ * comment is not a statement boundary, and neither is `SELECT` inside a string.
+ */
+export function maskLiterals(sql: string): string {
+    let out = '';
+    for (let i = 0; i < sql.length; i++) {
+        const ch = sql[i];
+        if (ch === '-' && sql[i + 1] === '-') {
+            while (i < sql.length && sql[i] !== '\n') { out += ' '; i++; }
+            out += i < sql.length ? '\n' : '';
+            continue;
+        }
+        if (ch === '/' && sql[i + 1] === '*') {
+            const end = sql.indexOf('*/', i + 2);
+            const stop = end === -1 ? sql.length : end + 2;
+            for (; i < stop; i++) { out += sql[i] === '\n' ? '\n' : ' '; }
+            i--;
+            continue;
+        }
+        if (ch === '\'' || ch === '"') {
+            const quote = ch;
+            out += ' ';
+            i++;
+            while (i < sql.length) {
+                if (sql[i] === quote) {
+                    // '' inside a literal is an escaped quote, not the end.
+                    if (sql[i + 1] === quote) { out += '  '; i += 2; continue; }
+                    break;
+                }
+                out += sql[i] === '\n' ? '\n' : ' ';
+                i++;
+            }
+            out += ' ';
+            continue;
+        }
+        out += ch;
+    }
+    return out;
+}
+
+/** True when the text carries no statement at all — only comments or blanks. */
+export function isBlankStatement(sql: string): boolean {
+    return maskLiterals(sql).trim().length === 0;
+}
+
+/**
+ * Split a script into statements on `;`, ignoring semicolons that live inside
+ * comments or string literals. Returns offsets into the original text.
+ */
+export function splitStatements(sql: string): { start: number; end: number }[] {
+    const masked = maskLiterals(sql);
+    const out: { start: number; end: number }[] = [];
+    let start = 0;
+    for (let i = 0; i < masked.length; i++) {
+        if (masked[i] === ';') { out.push({ start, end: i }); start = i + 1; }
+    }
+    out.push({ start, end: sql.length });
+    return out;
+}
+
+/**
  * Add OFFSET/FETCH (SQL:2008, which Fusion's database supports) so results
  * arrive one page at a time. A statement that already paginates is left alone,
  * as are non-SELECT statements — the proxy is read-only and will reject them
  * with the database's own message rather than a mangled one.
+ *
+ * The inspection runs on the masked text: a generated statement usually opens
+ * with a `-- comment` explaining itself, and matching `^select` against the raw
+ * text would skip pagination for exactly those — quietly fetching the whole
+ * result set instead of a page.
  */
 export function paginate(sql: string, offset: number, limit: number): string {
     const trimmed = sql.trim().replace(/;+\s*$/, '');
-    if (/\boffset\s+\d+\s+rows?\b/i.test(trimmed) || /\bfetch\s+(first|next)\b/i.test(trimmed)) {
+    const masked = maskLiterals(trimmed);
+    if (/\boffset\s+\d+\s+rows?\b/i.test(masked) || /\bfetch\s+(first|next)\b/i.test(masked)) {
         return trimmed;
     }
-    if (!/^\s*(select|with)\b/i.test(trimmed)) {
+    if (!/^\s*(select|with)\b/i.test(masked)) {
         return trimmed;
     }
     return `${trimmed} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
