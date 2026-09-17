@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.1
+
+- **xAI (Grok) and DeepSeek** join Anthropic and OpenAI as providers for query
+  generation — both speak the OpenAI chat-completions shape, so they needed an
+  address and a default model rather than a transport of their own.
+- `fusionSql.ai.baseUrl` now applies only to the `compatible` provider. A named
+  provider always uses its own endpoint, so a URL left over from a previous
+  provider can no longer send your key somewhere you did not intend.
+- A missing key now says where to get one for the provider you chose.
+
 ## 0.5.0
 
 - **The AI helper is findable now.** Setting it up was a command you had to know

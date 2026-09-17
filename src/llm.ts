@@ -7,14 +7,14 @@
  * package size and the supply-chain surface for no gain.
  */
 
-export type ProviderId = 'anthropic' | 'openai' | 'compatible';
+export type ProviderId = 'anthropic' | 'openai' | 'xai' | 'deepseek' | 'compatible';
 
 export type LlmConfig = {
     provider: ProviderId;
     apiKey: string;
     /** Empty means the provider's default below. */
     model?: string;
-    /** Required for 'compatible': an OpenAI-shaped endpoint (Azure, Ollama, OpenRouter…). */
+    /** Only for 'compatible': an OpenAI-shaped endpoint (Azure, Ollama, OpenRouter…). */
     baseUrl?: string;
     timeoutMs: number;
 };
@@ -22,13 +22,39 @@ export type LlmConfig = {
 export const DEFAULT_MODELS: Record<ProviderId, string> = {
     anthropic: 'claude-opus-5',
     openai: 'gpt-4o',
+    xai: 'grok-4',
+    deepseek: 'deepseek-chat',
     compatible: '',
 };
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
     anthropic: 'Anthropic (Claude)',
     openai: 'OpenAI',
+    xai: 'xAI (Grok)',
+    deepseek: 'DeepSeek',
     compatible: 'OpenAI-compatible endpoint',
+};
+
+/**
+ * xAI and DeepSeek both serve OpenAI's chat-completions shape, so they need no
+ * transport of their own — only where to send it. An empty entry means the
+ * endpoint comes from settings.
+ */
+export const PROVIDER_BASE_URLS: Record<ProviderId, string> = {
+    anthropic: 'https://api.anthropic.com',
+    openai: 'https://api.openai.com/v1',
+    xai: 'https://api.x.ai/v1',
+    deepseek: 'https://api.deepseek.com/v1',
+    compatible: '',
+};
+
+/** Where to get a key, shown when one is missing or rejected. */
+export const PROVIDER_KEY_URLS: Record<ProviderId, string> = {
+    anthropic: 'https://console.anthropic.com/settings/keys',
+    openai: 'https://platform.openai.com/api-keys',
+    xai: 'https://console.x.ai',
+    deepseek: 'https://platform.deepseek.com/api_keys',
+    compatible: '',
 };
 
 /**
@@ -91,7 +117,11 @@ export type GenerateOptions = {
 
 export async function generateSql(config: LlmConfig, options: GenerateOptions): Promise<string> {
     if (!config.apiKey) {
-        throw new Error('No API key stored for this provider. Run "Fusion: Set AI API Key".');
+        const where = PROVIDER_KEY_URLS[config.provider];
+        throw new Error(
+            `No API key stored for ${PROVIDER_LABELS[config.provider]}. `
+            + `Run "Fusion: Add AI Helper (API Key)"${where ? ` — get one at ${where}` : ''}.`,
+        );
     }
     const prompt = options.current?.trim()
         ? `Current statement:\n\n${options.current.trim()}\n\nChange it so that: ${options.request}`
@@ -110,7 +140,7 @@ async function callAnthropic(config: LlmConfig, prompt: string): Promise<string>
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: prompt }],
     };
-    const data = await post(config, 'https://api.anthropic.com/v1/messages', body, {
+    const data = await post(config, `${PROVIDER_BASE_URLS.anthropic}/v1/messages`, body, {
         'x-api-key': config.apiKey,
         'anthropic-version': '2023-06-01',
     }) as { content?: { type: string; text?: string }[]; stop_reason?: string };
@@ -124,14 +154,31 @@ async function callAnthropic(config: LlmConfig, prompt: string): Promise<string>
     return text;
 }
 
+/**
+ * Where a chat-completions request goes. A custom base URL applies only to
+ * 'compatible': for the named providers the endpoint is theirs, and honouring a
+ * setting left over from another provider would send the key somewhere the user
+ * never intended.
+ */
+export function chatCompletionsUrl(config: Pick<LlmConfig, 'provider' | 'baseUrl'>): string {
+    const configured = config.provider === 'compatible'
+        ? config.baseUrl
+        : PROVIDER_BASE_URLS[config.provider];
+    const base = (configured || '').replace(/\/+$/, '');
+    if (!base) {
+        throw new Error('Set "fusionSql.ai.baseUrl" — a compatible endpoint has no address of its own.');
+    }
+    return `${base}/chat/completions`;
+}
+
 /** OpenAI and every endpoint that mimics its chat-completions shape. */
 async function callOpenAiShaped(config: LlmConfig, prompt: string): Promise<string> {
-    const base = (config.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const url = chatCompletionsUrl(config);
     const model = config.model || DEFAULT_MODELS[config.provider];
     if (!model) {
         throw new Error('Set "fusionSql.ai.model" — a compatible endpoint has no default model.');
     }
-    const data = await post(config, `${base}/chat/completions`, {
+    const data = await post(config, url, {
         model,
         messages: [
             { role: 'system', content: SYSTEM_PROMPT },

@@ -121,11 +121,18 @@ view until one is stored, or from the view toolbar:
 Fusion: Add AI Helper (API Key)
 ```
 
-| Provider | Default model | Notes |
+| Provider | Default model | Endpoint |
 |---|---|---|
-| Anthropic | `claude-opus-5` | Messages API |
-| OpenAI | `gpt-4o` | Chat completions |
-| OpenAI-compatible | *(set one)* | Azure OpenAI, OpenRouter, Ollama, vLLM — set `fusionSql.ai.baseUrl` |
+| Anthropic | `claude-opus-5` | `api.anthropic.com` |
+| OpenAI | `gpt-4o` | `api.openai.com` |
+| xAI (Grok) | `grok-4` | `api.x.ai` |
+| DeepSeek | `deepseek-chat` | `api.deepseek.com` |
+| OpenAI-compatible | *(set one)* | your own — Azure OpenAI, OpenRouter, Ollama, vLLM, via `fusionSql.ai.baseUrl` |
+
+Change the model with `fusionSql.ai.model`; a model that no longer exists comes
+back as a plain "not found" naming that setting. `fusionSql.ai.baseUrl` applies
+only to the compatible provider — the named ones always use their own endpoint,
+so a setting left over from another provider cannot send your key elsewhere.
 
 Keys go to the OS keychain, the same place as connection passwords, and are sent
 only to the provider you selected. Nothing about your connections, credentials or

@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {
@@ -407,12 +407,16 @@
           "enum": [
             "anthropic",
             "openai",
+            "xai",
+            "deepseek",
             "compatible"
           ],
           "enumDescriptions": [
             "Anthropic Messages API (Claude).",
             "OpenAI chat completions.",
-            "Any endpoint that speaks the OpenAI chat-completions shape (Azure OpenAI, OpenRouter, Ollama, vLLM)."
+            "xAI (Grok) — api.x.ai.",
+            "DeepSeek — api.deepseek.com.",
+            "Any other endpoint that speaks the OpenAI chat-completions shape (Azure OpenAI, OpenRouter, Ollama, vLLM). Set fusionSql.ai.baseUrl."
           ],
           "default": "anthropic",
           "description": "Which provider generates queries. API keys are stored in the OS keychain, never here."
@@ -420,12 +424,12 @@
         "fusionSql.ai.model": {
           "type": "string",
           "default": "",
-          "description": "Model id. Blank uses the provider default (claude-opus-5 for Anthropic, gpt-4o for OpenAI). Required for a compatible endpoint."
+          "description": "Model id. Blank uses the provider default: claude-opus-5, gpt-4o, grok-4, deepseek-chat. Required for a compatible endpoint."
         },
         "fusionSql.ai.baseUrl": {
           "type": "string",
           "default": "",
-          "description": "Base URL for the \"compatible\" provider, e.g. http://localhost:11434/v1. Ignored otherwise."
+          "description": "Base URL for the \"compatible\" provider, e.g. http://localhost:11434/v1. Ignored for the named providers, which use their own endpoint."
         },
         "fusionSql.ai.timeoutSeconds": {
           "type": "number",
