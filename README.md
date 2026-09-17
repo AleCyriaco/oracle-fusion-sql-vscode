@@ -67,6 +67,10 @@ Development Host.
 > text, so the toolbar looks empty — use **New Query**, or click the language
 > name in the status bar and pick SQL.
 
+Every query you run is kept under **Query History** — right-click to run it
+again, open it in an editor, copy it, or remove it. A query that failed is kept
+too: that is the one you come back to fix.
+
 Right-click a connection for **Test**, **Edit**, **Duplicate**, **Delete**, and
 **Sign In / Sign Out** on SSO connections. Editing opens the same form, with the
 stored password left alone unless you type a new one; renaming carries the
@@ -97,6 +101,36 @@ need an application registered in your identity domain with
 Passwords and tokens go to **VS Code SecretStorage** (the OS keychain). Settings
 hold only the host, username and report path, so they stay safe to sync.
 
+## Generating queries with an AI model
+
+**Fusion: Generate Query with AI** (or the ✨ button on a SQL editor) opens a
+panel: describe what you want, get a statement, then keep asking for changes —
+each follow-up edits the statement rather than starting over. Insert it into the
+editor or run it straight away.
+
+The model is told what it needs to know to be useful here: Oracle dialect rather
+than generic SQL, `SELECT` only, no hand-written paging (the client adds it), and
+the Fusion conventions that trip people up — `_ALL` multi-org tables, `_B`/`_TL`
+translations, date-effective `_F`/`_M` rows — along with the usual table names
+across Payables, Receivables, GL, Purchasing, Inventory, Projects, Assets and HCM.
+
+Bring your own key:
+
+```
+Fusion: Set AI API Key
+```
+
+| Provider | Default model | Notes |
+|---|---|---|
+| Anthropic | `claude-opus-5` | Messages API |
+| OpenAI | `gpt-4o` | Chat completions |
+| OpenAI-compatible | *(set one)* | Azure OpenAI, OpenRouter, Ollama, vLLM — set `fusionSql.ai.baseUrl` |
+
+Keys go to the OS keychain, the same place as connection passwords, and are sent
+only to the provider you selected. Nothing about your connections, credentials or
+query results is sent anywhere — only the words you type in the panel and the
+statement being edited.
+
 ## Settings
 
 | Setting | Meaning |
@@ -104,6 +138,10 @@ hold only the host, username and report path, so they stay safe to sync.
 | `fusionSql.connections` | Environments. See below. |
 | `fusionSql.pageSize` | Rows per page (default 200). |
 | `fusionSql.timeoutSeconds` | HTTP timeout (default 120). |
+| `fusionSql.ai.provider` | `anthropic`, `openai` or `compatible`. |
+| `fusionSql.ai.model` | Model id; blank uses the provider default. |
+| `fusionSql.ai.baseUrl` | Endpoint for the `compatible` provider. |
+| `fusionSql.ai.timeoutSeconds` | How long to wait for the model (default 90). |
 
 ```jsonc
 "fusionSql.connections": [

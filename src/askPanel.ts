@@ -1,0 +1,123 @@
+/**
+ * The "ask for a query" panel: a prompt field, the generated SQL, and what to
+ * do with it. A panel rather than an input box because getting a useful query
+ * usually takes two or three passes, and each pass should see the last answer.
+ */
+import * as vscode from 'vscode';
+
+export type AskHost = {
+    generate(request: string, current?: string): Promise<string>;
+    insert(sql: string): Promise<void>;
+    run(sql: string): Promise<void>;
+    describeProvider(): string;
+};
+
+export class AskPanel {
+    private static current: AskPanel | undefined;
+    private readonly panel: vscode.WebviewPanel;
+    private disposables: vscode.Disposable[] = [];
+    private lastSql = '';
+
+    static show(extensionUri: vscode.Uri, host: AskHost, seed?: string): void {
+        if (AskPanel.current) {
+            AskPanel.current.panel.reveal();
+            AskPanel.current.setProvider();
+            if (seed) { void AskPanel.current.panel.webview.postMessage({ type: 'seed', sql: seed }); }
+            return;
+        }
+        AskPanel.current = new AskPanel(extensionUri, host, seed);
+    }
+
+    private constructor(extensionUri: vscode.Uri, private readonly host: AskHost, seed?: string) {
+        this.panel = vscode.window.createWebviewPanel(
+            'fusionSql.ask',
+            'Fusion: Generate Query',
+            vscode.ViewColumn.Active,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')],
+            },
+        );
+        this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
+        this.panel.webview.onDidReceiveMessage((m) => this.onMessage(m), null, this.disposables);
+        this.panel.webview.html = html(this.panel.webview, extensionUri);
+        this.setProvider();
+        if (seed) { void this.panel.webview.postMessage({ type: 'seed', sql: seed }); }
+    }
+
+    private setProvider(): void {
+        void this.panel.webview.postMessage({ type: 'provider', text: this.host.describeProvider() });
+    }
+
+    private async onMessage(message: { type: string; request?: string; current?: string }): Promise<void> {
+        if (message.type === 'generate') {
+            const request = (message.request ?? '').trim();
+            if (!request) { return; }
+            void this.panel.webview.postMessage({ type: 'busy' });
+            try {
+                // The current statement is sent back so a follow-up reads as an
+                // edit ("now group by supplier") rather than a fresh request.
+                this.lastSql = await this.host.generate(request, message.current || this.lastSql || undefined);
+                void this.panel.webview.postMessage({ type: 'sql', sql: this.lastSql });
+            } catch (error) {
+                void this.panel.webview.postMessage({
+                    type: 'error',
+                    text: error instanceof Error ? error.message : String(error),
+                });
+            }
+            return;
+        }
+        if (message.type === 'insert' && message.current) {
+            await this.host.insert(message.current);
+            return;
+        }
+        if (message.type === 'run' && message.current) {
+            await this.host.run(message.current);
+        }
+    }
+
+    private dispose(): void {
+        AskPanel.current = undefined;
+        for (const d of this.disposables) { d.dispose(); }
+        this.disposables = [];
+    }
+}
+
+function html(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+    const script = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'ask.js'));
+    const style = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'ask.css'));
+    const nonce = Buffer.from(String(Math.random())).toString('base64').slice(0, 16);
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="${style}" rel="stylesheet">
+<title>Generate Query</title>
+</head>
+<body>
+<h1>Describe the query</h1>
+<p class="hint" id="provider"></p>
+
+<textarea id="request" rows="4" spellcheck="false"
+  placeholder="e.g. unpaid supplier invoices over 10.000 due in the next 30 days, with supplier name"></textarea>
+
+<div id="actions">
+  <button type="button" id="generate" class="primary">Generate</button>
+  <span class="spacer"></span>
+  <button type="button" id="insert" class="secondary" disabled>Insert into Editor</button>
+  <button type="button" id="run" class="secondary" disabled>Run</button>
+</div>
+
+<div id="status" hidden></div>
+
+<label for="sql" id="sqlLabel" hidden>Generated SQL — edit freely before running</label>
+<textarea id="sql" rows="14" spellcheck="false" hidden></textarea>
+<p class="hint" id="followUp" hidden>Ask for a change and it will be applied to the statement above.</p>
+
+<script nonce="${nonce}" src="${script}"></script>
+</body>
+</html>`;
+}

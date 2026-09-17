@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {
@@ -47,6 +47,10 @@
         {
           "id": "fusionSql.connections",
           "name": "Connections"
+        },
+        {
+          "id": "fusionSql.history",
+          "name": "Query History"
         }
       ]
     },
@@ -125,6 +129,52 @@
         "command": "fusionSql.showLog",
         "title": "Show Log",
         "category": "Fusion"
+      },
+      {
+        "command": "fusionSql.generateQuery",
+        "title": "Generate Query with AI",
+        "category": "Fusion",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "fusionSql.setAiKey",
+        "title": "Set AI API Key",
+        "category": "Fusion"
+      },
+      {
+        "command": "fusionSql.clearAiKey",
+        "title": "Remove Stored AI API Keys",
+        "category": "Fusion"
+      },
+      {
+        "command": "fusionSql.openHistoryEntry",
+        "title": "Open in Editor",
+        "category": "Fusion",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "fusionSql.runHistoryEntry",
+        "title": "Run Again",
+        "category": "Fusion",
+        "icon": "$(play)"
+      },
+      {
+        "command": "fusionSql.copyHistoryEntry",
+        "title": "Copy SQL",
+        "category": "Fusion",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "fusionSql.deleteHistoryEntry",
+        "title": "Remove from History",
+        "category": "Fusion",
+        "icon": "$(close)"
+      },
+      {
+        "command": "fusionSql.clearHistory",
+        "title": "Clear Query History",
+        "category": "Fusion",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -148,6 +198,11 @@
           "command": "fusionSql.importConnections",
           "when": "view == fusionSql.connections",
           "group": "1_import@1"
+        },
+        {
+          "command": "fusionSql.clearHistory",
+          "when": "view == fusionSql.history",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -195,6 +250,26 @@
           "command": "fusionSql.removeConnection",
           "when": "view == fusionSql.connections && viewItem =~ /^connection/",
           "group": "3_edit@3"
+        },
+        {
+          "command": "fusionSql.runHistoryEntry",
+          "when": "view == fusionSql.history && viewItem == history",
+          "group": "inline@1"
+        },
+        {
+          "command": "fusionSql.copyHistoryEntry",
+          "when": "view == fusionSql.history && viewItem == history",
+          "group": "inline@2"
+        },
+        {
+          "command": "fusionSql.openHistoryEntry",
+          "when": "view == fusionSql.history && viewItem == history",
+          "group": "1_use@1"
+        },
+        {
+          "command": "fusionSql.deleteHistoryEntry",
+          "when": "view == fusionSql.history && viewItem == history",
+          "group": "2_edit@1"
         }
       ],
       "editor/title": [
@@ -202,6 +277,11 @@
           "command": "fusionSql.runQuery",
           "when": "editorLangId == sql",
           "group": "navigation"
+        },
+        {
+          "command": "fusionSql.generateQuery",
+          "when": "editorLangId == sql",
+          "group": "navigation@2"
         }
       ]
     },
@@ -281,6 +361,36 @@
           "type": "number",
           "default": 120,
           "description": "HTTP timeout in seconds."
+        },
+        "fusionSql.ai.provider": {
+          "type": "string",
+          "enum": [
+            "anthropic",
+            "openai",
+            "compatible"
+          ],
+          "enumDescriptions": [
+            "Anthropic Messages API (Claude).",
+            "OpenAI chat completions.",
+            "Any endpoint that speaks the OpenAI chat-completions shape (Azure OpenAI, OpenRouter, Ollama, vLLM)."
+          ],
+          "default": "anthropic",
+          "description": "Which provider generates queries. API keys are stored in the OS keychain, never here."
+        },
+        "fusionSql.ai.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model id. Blank uses the provider default (claude-opus-5 for Anthropic, gpt-4o for OpenAI). Required for a compatible endpoint."
+        },
+        "fusionSql.ai.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL for the \"compatible\" provider, e.g. http://localhost:11434/v1. Ignored otherwise."
+        },
+        "fusionSql.ai.timeoutSeconds": {
+          "type": "number",
+          "default": 90,
+          "description": "How long to wait for the model."
         }
       }
     },
@@ -288,6 +398,10 @@
       {
         "view": "fusionSql.connections",
         "contents": "No Fusion connections yet.\n[New Connection](command:fusionSql.addConnection)\nAlready using the fusion-query MCP server? Bring its environments across.\n[Import from connections.json](command:fusionSql.importConnections)"
+      },
+      {
+        "view": "fusionSql.history",
+        "contents": "Queries you run appear here.\n[Generate Query with AI](command:fusionSql.generateQuery)"
       }
     ]
   },

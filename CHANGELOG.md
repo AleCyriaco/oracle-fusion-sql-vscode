@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+- **Query history.** Every run is recorded — statement, connection, row count,
+  duration — and appears in a **Query History** view: run again, open in an
+  editor, copy, remove. Failures are kept too. Re-running a statement moves its
+  entry to the top instead of stacking duplicates.
+- **Generate queries with an AI model.** Describe what you want and get Oracle
+  SQL written for Fusion: the model is given the dialect rules, the read-only
+  constraint, the `_ALL` / `_B` / `_TL` / `_F` conventions and the common table
+  names per module. Follow-up requests edit the statement instead of starting
+  over. Bring your own key for Anthropic, OpenAI, or any OpenAI-compatible
+  endpoint; keys live in the OS keychain and only the text you type is sent.
+
 ## 0.3.0
 
 - Packaged for the Visual Studio Marketplace: icon, gallery banner, bundled

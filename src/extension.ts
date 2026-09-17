@@ -7,6 +7,9 @@ import {
     passwordKey, resolveAuth, saveConnection, tokenKey, writeToken,
 } from './connections';
 import { ResultsPanel } from './resultsPanel';
+import { History, HistoryItem, HistoryProvider } from './history';
+import { AskPanel } from './askPanel';
+import { DEFAULT_MODELS, LlmConfig, PROVIDER_LABELS, ProviderId, generateSql } from './llm';
 
 const ACTIVE_KEY = 'fusionSql.activeConnection';
 
@@ -16,6 +19,9 @@ const ACTIVE_KEY = 'fusionSql.activeConnection';
  * is exactly the failure that is impossible to report usefully.
  */
 let log: vscode.LogOutputChannel;
+let history: History;
+
+const AI_KEY = (provider: ProviderId) => `fusionSql.aiKey.${provider}`;
 
 let tree: ConnectionsProvider;
 /** Resolves the OAuth redirect that VS Code hands back through its URI handler. */
@@ -27,8 +33,11 @@ export function activate(context: vscode.ExtensionContext): void {
     log.info(`Activated ${context.extension.id}`);
 
     tree = new ConnectionsProvider(context);
+    history = new History(context);
+    const historyTree = new HistoryProvider(history);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('fusionSql.connections', tree),
+        vscode.window.registerTreeDataProvider('fusionSql.history', historyTree),
         vscode.window.registerUriHandler({ handleUri: onUri }),
         vscode.workspace.onDidChangeConfiguration((e) => {
             if (e.affectsConfiguration('fusionSql.connections')) { tree.refresh(); }
@@ -46,6 +55,16 @@ export function activate(context: vscode.ExtensionContext): void {
         command('fusionSql.runQuery', () => runQuery(context)),
         command('fusionSql.newQuery', () => newQuery()),
         command('fusionSql.showLog', () => log.show()),
+        command('fusionSql.generateQuery', () => generateQuery(context)),
+        command('fusionSql.setAiKey', () => setAiKey(context)),
+        command('fusionSql.clearAiKey', () => clearAiKey(context)),
+        command('fusionSql.openHistoryEntry', (item?: HistoryItem) => openHistoryEntry(item)),
+        command('fusionSql.runHistoryEntry', (item?: HistoryItem) => runHistoryEntry(context, item)),
+        command('fusionSql.copyHistoryEntry', (item?: HistoryItem) =>
+            item ? vscode.env.clipboard.writeText(item.entry.sql) : undefined),
+        command('fusionSql.deleteHistoryEntry', (item?: HistoryItem) =>
+            item ? history.remove(item.entry.id) : undefined),
+        command('fusionSql.clearHistory', () => clearHistory()),
     );
 }
 
@@ -318,9 +337,15 @@ async function runQuery(context: vscode.ExtensionContext): Promise<void> {
     try {
         const page = await fetchPage(0);
         log.info(`${page.rows.length} row(s), ${page.columns.length} column(s), ${page.elapsedMs} ms`);
+        await history.add({
+            sql, connection: connection.name, rows: page.rows.length, elapsedMs: page.elapsedMs,
+        });
         panel.render(page, fetchPage);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        // Failures are worth keeping too — a query that errored is the one you
+        // come back to fix.
+        await history.add({ sql, connection: connection.name, error: message });
         panel.setError(message);
         throw error;
     }
@@ -455,4 +480,134 @@ class ConnectionsProvider implements vscode.TreeDataProvider<ConnectionItem> {
         }
         return items;
     }
+}
+
+// --- history -------------------------------------------------------------
+
+async function openHistoryEntry(item?: HistoryItem): Promise<void> {
+    if (!item) { return; }
+    const document = await vscode.workspace.openTextDocument({ language: 'sql', content: item.entry.sql });
+    await vscode.window.showTextDocument(document);
+}
+
+async function runHistoryEntry(context: vscode.ExtensionContext, item?: HistoryItem): Promise<void> {
+    if (!item) { return; }
+    await openHistoryEntry(item);
+    await runQuery(context);
+}
+
+async function clearHistory(): Promise<void> {
+    const count = history.list().length;
+    if (count === 0) { return; }
+    const confirm = await vscode.window.showWarningMessage(
+        `Clear ${count} history entr${count === 1 ? 'y' : 'ies'}?`, { modal: true }, 'Clear',
+    );
+    if (confirm === 'Clear') { await history.clear(); }
+}
+
+// --- query generation ----------------------------------------------------
+
+function aiProvider(): ProviderId {
+    return vscode.workspace.getConfiguration('fusionSql')
+        .get<ProviderId>('ai.provider') ?? 'anthropic';
+}
+
+async function aiConfig(context: vscode.ExtensionContext): Promise<LlmConfig> {
+    const settings = vscode.workspace.getConfiguration('fusionSql');
+    const provider = aiProvider();
+    return {
+        provider,
+        apiKey: (await context.secrets.get(AI_KEY(provider))) ?? '',
+        model: settings.get<string>('ai.model') ?? '',
+        baseUrl: settings.get<string>('ai.baseUrl') ?? '',
+        timeoutMs: (settings.get<number>('ai.timeoutSeconds') ?? 90) * 1000,
+    };
+}
+
+async function setAiKey(context: vscode.ExtensionContext): Promise<void> {
+    const picked = await vscode.window.showQuickPick(
+        (Object.keys(PROVIDER_LABELS) as ProviderId[]).map((id) => ({
+            label: PROVIDER_LABELS[id],
+            description: id === aiProvider() ? 'current provider' : undefined,
+            id,
+        })),
+        { title: 'Store an API key for which provider?' },
+    );
+    if (!picked) { return; }
+    const key = await vscode.window.showInputBox({
+        title: `API key for ${PROVIDER_LABELS[picked.id]}`,
+        password: true,
+        ignoreFocusOut: true,
+        prompt: 'Stored in the OS keychain, never in settings.',
+    });
+    if (!key) { return; }
+    await context.secrets.store(AI_KEY(picked.id), key.trim());
+    // Storing a key for a provider almost always means intending to use it.
+    if (picked.id !== aiProvider()) {
+        const choice = await vscode.window.showInformationMessage(
+            `Key stored. Make ${PROVIDER_LABELS[picked.id]} the active provider?`, 'Yes',
+        );
+        if (choice === 'Yes') {
+            await vscode.workspace.getConfiguration('fusionSql')
+                .update('ai.provider', picked.id, vscode.ConfigurationTarget.Global);
+        }
+    } else {
+        void vscode.window.showInformationMessage('API key stored.');
+    }
+}
+
+async function clearAiKey(context: vscode.ExtensionContext): Promise<void> {
+    for (const id of Object.keys(PROVIDER_LABELS) as ProviderId[]) {
+        await context.secrets.delete(AI_KEY(id));
+    }
+    void vscode.window.showInformationMessage('Stored AI API keys removed.');
+}
+
+async function generateQuery(context: vscode.ExtensionContext): Promise<void> {
+    const config = await aiConfig(context);
+    if (!config.apiKey) {
+        const choice = await vscode.window.showWarningMessage(
+            `No API key stored for ${PROVIDER_LABELS[config.provider]}.`, 'Set API Key',
+        );
+        if (choice === 'Set API Key') { await setAiKey(context); }
+        return;
+    }
+
+    const editor = vscode.window.activeTextEditor;
+    const seed = editor?.document.languageId === 'sql' ? statementAtCursor(editor).trim() : '';
+
+    AskPanel.show(context.extensionUri, {
+        describeProvider: () => {
+            const model = config.model || DEFAULT_MODELS[config.provider];
+            return `${PROVIDER_LABELS[config.provider]}${model ? ` · ${model}` : ''}`;
+        },
+        generate: async (request, current) => {
+            log.info(`> generate (${config.provider}): ${request.slice(0, 120)}`);
+            // Re-read the key each time: it may have been set from the warning above.
+            const fresh = await aiConfig(context);
+            const sql = await generateSql(fresh, { request, current });
+            log.info(`< generate: ${sql.length} chars`);
+            return sql;
+        },
+        insert: async (sql) => {
+            const target = vscode.window.activeTextEditor;
+            if (target && target.document.languageId === 'sql') {
+                await target.edit((edit) => {
+                    edit.replace(target.selection.isEmpty
+                        ? new vscode.Range(target.document.positionAt(0),
+                            target.document.positionAt(target.document.getText().length))
+                        : target.selection, sql);
+                });
+                await vscode.window.showTextDocument(target.document, target.viewColumn);
+                return;
+            }
+            const document = await vscode.workspace.openTextDocument({ language: 'sql', content: sql });
+            await vscode.window.showTextDocument(document);
+        },
+        run: async (sql) => {
+            const document = await vscode.workspace.openTextDocument({ language: 'sql', content: sql });
+            await vscode.window.showTextDocument(document);
+            await runQuery(context);
+        },
+    }, seed || undefined);
 }
