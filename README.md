@@ -31,6 +31,17 @@ and install it from inside VS Code: <kbd>Ctrl/Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P<
 >
 > Confirm with `code --list-extensions --show-versions | grep fusion-sql`.
 
+### Publishing (maintainers)
+
+Upload the `.vsix` at
+[marketplace.visualstudio.com/manage](https://marketplace.visualstudio.com/manage)
+— drag and drop, and the version in `package.json` is what identifies it.
+
+That page needs nothing but the Microsoft account that owns the publisher. The
+`vsce publish` route additionally requires a personal access token from an
+Azure DevOps **organization**, and creating one can demand a linked Azure
+subscription — a detour worth skipping unless publishing is automated.
+
 To build it yourself:
 
 ```
