@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.2
+
+- New mark: a flat database stack in the logo's blue and orange with **OFSQL**
+  beneath it, no frame around the artwork. Colours sampled from the reference
+  rather than matched by eye. The activity bar icon carries OF over SQL, since
+  five letters only fit a 24px square stacked, and stays monochrome because
+  that is what the activity bar tints.
+
 ## 0.9.1
 
 - **One results panel per connection.** A single panel made every query replace
