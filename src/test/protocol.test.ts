@@ -175,8 +175,8 @@ test('pickIdentityDomain recognises the Oracle identity host', () => {
     assert.equal(pickIdentityDomain([
         'https://pod.fa.em4.oraclecloud.com/fscmUI/faces/FuseWelcome',
         'https://pod.fa.em4.oraclecloud.com/fscmUI/adfAuthentication?level=FORM',
-        'https://idcs-19546cb9af084acb834eed51614b59f8.identity.oraclecloud.com/oauth2/v1/authorize?response_mode=form_post',
-    ]), 'idcs-19546cb9af084acb834eed51614b59f8.identity.oraclecloud.com');
+        'https://idcs-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6.identity.oraclecloud.com/oauth2/v1/authorize?response_mode=form_post',
+    ]), 'idcs-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6.identity.oraclecloud.com');
 });
 
 test('pickIdentityDomain also accepts any host answering on the authorize path', () => {
