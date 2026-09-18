@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {
@@ -499,7 +499,7 @@
   "homepage": "https://github.com/AleCyriaco/oracle-fusion-sql-vscode#readme",
   "icon": "media/icon.png",
   "galleryBanner": {
-    "color": "#FFFFFF",
+    "color": "#EFECFD",
     "theme": "light"
   },
   "qna": "marketplace",

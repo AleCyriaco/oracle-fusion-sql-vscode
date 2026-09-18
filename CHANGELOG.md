@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.4
+
+- New artwork: the hexagon and isometric cube, replacing the database mark.
+  The gallery icon uses it as supplied; the activity bar gets an outline
+  version of the same shape, because that icon is drawn at 24px in a single
+  colour the editor chooses — gradients and nested hexagons cannot survive
+  there, but geometry can.
+
 ## 0.9.3
 
 - The activity bar carries Oracle's wide O with FSQL inside it, replacing the
