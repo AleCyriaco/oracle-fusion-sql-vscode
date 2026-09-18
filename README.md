@@ -146,7 +146,9 @@ Fusion: Add AI Helper (API Key)
 | DeepSeek | `deepseek-v4-pro` | `api.deepseek.com` |
 | OpenAI-compatible | *(set one)* | your own — Azure OpenAI, OpenRouter, Ollama, vLLM, via `fusionSql.ai.baseUrl` |
 
-Change the model with `fusionSql.ai.model`. Model ids drift faster than anything
+Switch between them with **Fusion: Select AI Provider**; adding a key with
+**Add AI Helper (API Key)** switches to that provider on its own. Change the
+model with `fusionSql.ai.model`. Model ids drift faster than anything
 else here, so these are only defaults — a provider that answers 404 gives a plain
 "not found" naming that setting, and nothing needs reinstalling to move on. `fusionSql.ai.baseUrl` applies
 only to the compatible provider — the named ones always use their own endpoint,

@@ -11,7 +11,8 @@ import { isBlankStatement, splitStatements } from './protocol';
 import { History, HistoryItem, HistoryProvider } from './history';
 import { AskPanel, AskProgress, AskResult } from './askPanel';
 import {
-    DEFAULT_MODELS, LlmConfig, PROVIDER_LABELS, ProviderId, firstOracleError, generateSql,
+    DEFAULT_MODELS, LlmConfig, PROVIDER_KEY_URLS, PROVIDER_LABELS, ProviderId, firstOracleError,
+    generateSql,
 } from './llm';
 
 const ACTIVE_KEY = 'fusionSql.activeConnection';
@@ -61,6 +62,7 @@ export function activate(context: vscode.ExtensionContext): void {
         command('fusionSql.showLog', () => log.show()),
         command('fusionSql.generateQuery', () => generateQuery(context)),
         command('fusionSql.setAiKey', () => setAiKey(context)),
+        command('fusionSql.selectAiProvider', () => selectAiProvider(context)),
         command('fusionSql.clearAiKey', () => clearAiKey(context)),
         command('fusionSql.openHistoryEntry', (item?: HistoryItem) => openHistoryEntry(item)),
         command('fusionSql.runHistoryEntry', (item?: HistoryItem) => runHistoryEntry(context, item)),
@@ -572,36 +574,78 @@ async function refreshAiContext(context: vscode.ExtensionContext): Promise<void>
 }
 
 async function setAiKey(context: vscode.ExtensionContext): Promise<void> {
+    const picked = await pickProvider('Add an AI helper — which provider?');
+    if (!picked) { return; }
+
+    if (picked === 'compatible') {
+        const url = await vscode.window.showInputBox({
+            title: 'Endpoint URL',
+            value: vscode.workspace.getConfiguration('fusionSql').get<string>('ai.baseUrl') || '',
+            ignoreFocusOut: true,
+            placeHolder: 'https://host/v1',
+            prompt: 'Base URL of an OpenAI-compatible API, e.g. http://localhost:11434/v1 for Ollama.',
+        });
+        if (!url) { return; }
+        const model = await vscode.window.showInputBox({
+            title: 'Model id',
+            value: vscode.workspace.getConfiguration('fusionSql').get<string>('ai.model') || '',
+            ignoreFocusOut: true,
+            prompt: 'A compatible endpoint has no default — name the model it serves.',
+        });
+        if (!model) { return; }
+        const settings = vscode.workspace.getConfiguration('fusionSql');
+        await settings.update('ai.baseUrl', url.trim(), vscode.ConfigurationTarget.Global);
+        await settings.update('ai.model', model.trim(), vscode.ConfigurationTarget.Global);
+    }
+
+    const where = PROVIDER_KEY_URLS[picked];
+    const key = await vscode.window.showInputBox({
+        title: `API key for ${PROVIDER_LABELS[picked]}`,
+        password: true,
+        ignoreFocusOut: true,
+        prompt: `Stored in the OS keychain, never in settings.${where ? ` Get one at ${where}` : ''}`,
+    });
+    if (!key) { return; }
+
+    await context.secrets.store(AI_KEY(picked), key.trim());
+    // Adding a key for a provider means wanting to use it. Asking afterwards
+    // only created a state where the key is stored and the provider is not,
+    // which then fails with a message about a provider the user never chose.
+    await vscode.workspace.getConfiguration('fusionSql')
+        .update('ai.provider', picked, vscode.ConfigurationTarget.Global);
+    await refreshAiContext(context);
+    void vscode.window.showInformationMessage(`${PROVIDER_LABELS[picked]} is now the AI helper.`);
+}
+
+/** The provider list, in one place, so every entry point offers the same set. */
+async function pickProvider(title: string): Promise<ProviderId | undefined> {
+    const active = aiProvider();
     const picked = await vscode.window.showQuickPick(
         (Object.keys(PROVIDER_LABELS) as ProviderId[]).map((id) => ({
             label: PROVIDER_LABELS[id],
-            description: id === aiProvider() ? 'current provider' : undefined,
+            description: id === active ? '$(check) current' : DEFAULT_MODELS[id] || undefined,
+            detail: id === 'compatible'
+                ? 'Azure OpenAI, OpenRouter, Ollama, vLLM — you supply the URL and model'
+                : undefined,
             id,
         })),
-        { title: 'Store an API key for which provider?' },
+        { title, ignoreFocusOut: true },
     );
+    return picked?.id;
+}
+
+async function selectAiProvider(context: vscode.ExtensionContext): Promise<void> {
+    const picked = await pickProvider('Generate queries with which provider?');
     if (!picked) { return; }
-    const key = await vscode.window.showInputBox({
-        title: `API key for ${PROVIDER_LABELS[picked.id]}`,
-        password: true,
-        ignoreFocusOut: true,
-        prompt: 'Stored in the OS keychain, never in settings.',
-    });
-    if (!key) { return; }
-    await context.secrets.store(AI_KEY(picked.id), key.trim());
-    await refreshAiContext(context);
-    // Storing a key for a provider almost always means intending to use it.
-    if (picked.id !== aiProvider()) {
-        const choice = await vscode.window.showInformationMessage(
-            `Key stored. Make ${PROVIDER_LABELS[picked.id]} the active provider?`, 'Yes',
+    await vscode.workspace.getConfiguration('fusionSql')
+        .update('ai.provider', picked, vscode.ConfigurationTarget.Global);
+    if (!(await context.secrets.get(AI_KEY(picked)))) {
+        const choice = await vscode.window.showWarningMessage(
+            `No API key stored for ${PROVIDER_LABELS[picked]}.`, 'Add API Key',
         );
-        if (choice === 'Yes') {
-            await vscode.workspace.getConfiguration('fusionSql')
-                .update('ai.provider', picked.id, vscode.ConfigurationTarget.Global);
-        }
-    } else {
-        void vscode.window.showInformationMessage('API key stored.');
+        if (choice === 'Add API Key') { await setAiKey(context); return; }
     }
+    void vscode.window.showInformationMessage(`AI helper: ${PROVIDER_LABELS[picked]}.`);
 }
 
 async function clearAiKey(context: vscode.ExtensionContext): Promise<void> {
@@ -616,9 +660,23 @@ async function generateQuery(context: vscode.ExtensionContext): Promise<void> {
     const config = await aiConfig(context);
     if (!config.apiKey) {
         const choice = await vscode.window.showWarningMessage(
-            `No API key stored for ${PROVIDER_LABELS[config.provider]}.`, 'Set API Key',
+            `No API key stored for ${PROVIDER_LABELS[config.provider]}.`,
+            'Add API Key', 'Change Provider',
         );
-        if (choice === 'Set API Key') { await setAiKey(context); }
+        if (choice === 'Add API Key') { await setAiKey(context); }
+        if (choice === 'Change Provider') { await selectAiProvider(context); }
+        return;
+    }
+    if (config.provider === 'compatible' && !(config.baseUrl && config.model)) {
+        const choice = await vscode.window.showWarningMessage(
+            'The provider is set to "OpenAI-compatible endpoint", which needs a URL and a model '
+            + 'of its own. Anthropic, OpenAI, xAI and DeepSeek are built in and need neither.',
+            'Change Provider', 'Open Settings',
+        );
+        if (choice === 'Change Provider') { await selectAiProvider(context); }
+        if (choice === 'Open Settings') {
+            await vscode.commands.executeCommand('workbench.action.openSettings', 'fusionSql.ai');
+        }
         return;
     }
 

@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {
@@ -190,6 +190,12 @@
         "title": "Clear Query History",
         "category": "Fusion",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "fusionSql.selectAiProvider",
+        "title": "Select AI Provider",
+        "category": "Fusion",
+        "icon": "$(server)"
       }
     ],
     "menus": {
@@ -225,9 +231,14 @@
           "group": "2_ai@1"
         },
         {
-          "command": "fusionSql.clearAiKey",
+          "command": "fusionSql.selectAiProvider",
           "when": "view == fusionSql.connections",
           "group": "2_ai@2"
+        },
+        {
+          "command": "fusionSql.clearAiKey",
+          "when": "view == fusionSql.connections",
+          "group": "2_ai@3"
         },
         {
           "command": "fusionSql.showLog",

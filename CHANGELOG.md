@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.2
+
+- **Adding a key now switches to that provider.** It used to store the key and
+  then ask whether to switch, which left a state where the key belonged to one
+  provider and the setting to another — and the failure then named a provider
+  the user had never chosen.
+- **Choosing the compatible endpoint now asks for its URL and model**, instead
+  of accepting the choice and failing later with
+  *"a compatible endpoint has no default model"*.
+- **Fusion: Select AI Provider** switches provider without re-entering a key,
+  and says if none is stored for the one you picked.
+- The provider list shows each one's default model, so it is clear that
+  Anthropic, OpenAI, xAI and DeepSeek need no configuration of their own.
+
 ## 0.6.1
 
 - Default models corrected against each provider's own quickstart: `gpt-5.6-sol`
