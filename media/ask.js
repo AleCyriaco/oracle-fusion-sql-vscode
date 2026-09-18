@@ -52,6 +52,10 @@
 
     function describe(progress) {
         if (progress.kind === 'thinking') { return 'Asking the model\u2026'; }
+        if (progress.kind === 'looking') {
+            return `Checking names in the data dictionary (${progress.attempt} of ${progress.attempts})\u2026`
+                + `\n\n${progress.sql}`;
+        }
         if (progress.kind === 'validating') {
             return progress.attempt === 1
                 ? `Checking the statement against ${progress.connection}\u2026`

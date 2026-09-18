@@ -113,6 +113,22 @@ panel: describe what you want, get a statement, then keep asking for changes —
 each follow-up edits the statement rather than starting over. Copy it, save it
 to a file, insert it into the editor, or run it straight away.
 
+**The model works inside a harness.** Every reply is inspected before it can
+run: exactly one statement, `SELECT` or `WITH` only, and nothing that reaches
+outside the query — no `UTL_`, `DBMS_` or `APEX_` packages, no `HTTPURITYPE`, no
+database links, no `EXECUTE IMMEDIATE`. A refused reply goes back to the model
+with the reason. This is enforcement rather than instruction: on a live pod
+`UTL_HTTP.request` answers `ORA-29273`, which means the call was attempted and
+only the network stopped it.
+
+**It can check a name rather than guess.** When the model is unsure a table or
+column exists, it replies with a query against the data dictionary alone. That is
+recognised as a lookup rather than an answer — it runs, and the rows go back so
+the real query is written from what is there. Up to three lookups, and the prompt
+carries what the dictionary actually looks like here: the connected user reads
+through synonyms, so `ALL_TABLES` is usually empty for application objects while
+`ALL_TAB_COLUMNS`, `ALL_OBJECTS` and `ALL_SYNONYMS` answer properly.
+
 **The statement is checked before you get it.** A model writing SQL for a schema
 it cannot see will occasionally invent a table or a column, and the result looks
 perfectly plausible until it is run. So the extension runs it — a single-row page

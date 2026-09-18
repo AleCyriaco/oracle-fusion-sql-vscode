@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 export type AskProgress =
     | { kind: 'thinking' }
     | { kind: 'validating'; connection: string; attempt: number; attempts: number }
+    | { kind: 'looking'; sql: string; attempt: number; attempts: number }
     | { kind: 'repairing'; error: string; attempt: number; attempts: number };
 
 export type AskResult = {

@@ -9,11 +9,13 @@ import {
 import { ResultsPanel } from './resultsPanel';
 import { isBlankStatement, splitStatements } from './protocol';
 import { discoverIdentityDomain } from './discovery';
+import { inspectStatement, isDictionaryQuery } from './guard';
+import { toCsv } from './protocol';
 import { History, HistoryItem, HistoryProvider } from './history';
 import { AskPanel, AskProgress, AskResult } from './askPanel';
 import {
-    DEFAULT_MODELS, LlmConfig, PROVIDER_KEY_URLS, PROVIDER_LABELS, ProviderId, firstOracleError,
-    generateSql,
+    DEFAULT_MODELS, GenerateOptions, LlmConfig, PROVIDER_KEY_URLS, PROVIDER_LABELS, ProviderId,
+    firstOracleError, generateSql,
 } from './llm';
 
 const ACTIVE_KEY = 'fusionSql.activeConnection';
@@ -755,15 +757,19 @@ async function generateQuery(context: vscode.ExtensionContext): Promise<void> {
 
 /** How many times a rejected statement is sent back to be fixed. */
 const REPAIR_ATTEMPTS = 3;
+/** How many dictionary lookups the model may spend before answering. */
+const LOOKUP_BUDGET = 3;
 
 /**
- * Generate a statement and prove it runs before handing it over.
+ * Generate a statement, let the model check names it is unsure of, refuse
+ * anything outside the rules, and prove the result runs before handing it over.
  *
- * A model writing SQL for a schema it cannot see will occasionally invent a
- * table or a column, and the result looks perfectly plausible until it is run.
- * Executing a single-row page settles it: Oracle resolves every identifier, and
- * when it objects it names the offending one — which is exactly what the model
- * needs to fix it. Cheaper than making the user discover the mistake.
+ * Three things happen in one loop because they feed each other. The harness
+ * refuses a reply that is not a single read-only statement. A reply that reads
+ * only the data dictionary is not an answer at all — it is the model checking a
+ * name, so it runs and the rows go back. And a statement the database rejects
+ * comes back with Oracle's own complaint, which names the identifier that was
+ * wrong.
  */
 async function generateAndValidate(
     context: vscode.ExtensionContext,
@@ -773,43 +779,81 @@ async function generateAndValidate(
     report: (progress: AskProgress) => void,
 ): Promise<AskResult> {
     const validate = vscode.workspace.getConfiguration('fusionSql').get<boolean>('ai.validate') ?? true;
-
-    report({ kind: 'thinking' });
     const config = await aiConfig(context);
     log.info(`> generate (${config.provider}): ${request.slice(0, 120)}`);
-    let sql = await generateSql(config, { request, current });
 
-    if (!validate) { return { sql }; }
-    if (!connection) {
-        return { sql, note: 'Not checked — no connection is configured.' };
-    }
-    const client = await buildClient(context, connection);
-    if (!client) {
-        return { sql, note: `Not checked — no credentials for ${connection.name}.` };
-    }
+    const client = validate && connection ? await buildClient(context, connection) : undefined;
+    let options: GenerateOptions = { request, current };
+    let sql = '';
+    let lookups = 0;
 
-    let lastError = '';
-    for (let attempt = 1; attempt <= REPAIR_ATTEMPTS; attempt++) {
-        report({ kind: 'validating', connection: connection.name, attempt, attempts: REPAIR_ATTEMPTS });
+    for (let attempt = 1; attempt <= REPAIR_ATTEMPTS + LOOKUP_BUDGET; attempt++) {
+        report({ kind: 'thinking' });
+        sql = await generateSql(config, options);
+
+        const verdict = inspectStatement(sql);
+        if (!verdict.ok) {
+            log.warn(`refused: ${verdict.reason}`);
+            if (attempt === REPAIR_ATTEMPTS + LOOKUP_BUDGET) {
+                return { sql, validated: false, note: `Refused by the harness: ${verdict.reason}.` };
+            }
+            report({ kind: 'repairing', error: `Refused: ${verdict.reason}`, attempt: attempt + 1, attempts: REPAIR_ATTEMPTS });
+            options = { request, current: sql, refusal: verdict.reason };
+            continue;
+        }
+
+        // A reply that reads only the dictionary is the model checking a name.
+        if (client && isDictionaryQuery(sql) && lookups < LOOKUP_BUDGET) {
+            lookups++;
+            report({ kind: 'looking', sql, attempt: lookups, attempts: LOOKUP_BUDGET });
+            log.info(`lookup ${lookups}: ${sql.replace(/\s+/g, ' ').slice(0, 140)}`);
+            try {
+                const page = await client.query(sql, 0, 60);
+                options = {
+                    request,
+                    lookup: { sql, table: page.rows.length ? toCsv(page.columns, page.rows) : '(no rows)' },
+                };
+            } catch (error) {
+                options = {
+                    request,
+                    lookup: { sql, table: `(the lookup failed: ${firstOracleError(error instanceof Error ? error.message : String(error))})` },
+                };
+            }
+            continue;
+        }
+
+        if (!client) {
+            return {
+                sql,
+                note: connection ? `Not checked — no credentials for ${connection.name}.`
+                    : 'Not checked — no connection is configured.',
+            };
+        }
+
+        report({ kind: 'validating', connection: connection!.name, attempt, attempts: REPAIR_ATTEMPTS });
         try {
             const page = await client.query(sql, 0, 1);
-            log.info(`< generate: validated on ${connection.name}, ${page.columns.length} column(s)`);
+            log.info(`< generate: validated, ${page.columns.length} column(s), ${lookups} lookup(s)`);
             return {
                 sql,
                 validated: true,
-                note: `Runs on ${connection.name} · ${page.columns.length} column(s)`
+                note: `Runs on ${connection!.name} · ${page.columns.length} column(s)`
+                    + (lookups ? ` · ${lookups} name check${lookups === 1 ? '' : 's'}` : '')
                     + (page.rows.length === 0 ? ' · no rows matched' : ''),
             };
         } catch (error) {
-            lastError = error instanceof Error ? error.message : String(error);
-            log.warn(`validation failed (attempt ${attempt}): ${lastError.split('\n')[0]}`);
-            if (attempt === REPAIR_ATTEMPTS) { break; }
-            report({ kind: 'repairing', error: firstOracleError(lastError), attempt: attempt + 1, attempts: REPAIR_ATTEMPTS });
-            sql = await generateSql(config, { request, current: sql, databaseError: lastError });
+            const message = error instanceof Error ? error.message : String(error);
+            log.warn(`validation failed (attempt ${attempt}): ${message.split('\n')[0]}`);
+            if (attempt === REPAIR_ATTEMPTS + LOOKUP_BUDGET) {
+                return { sql, validated: false, note: `Did not run on ${connection!.name}: ${firstOracleError(message)}` };
+            }
+            report({ kind: 'repairing', error: firstOracleError(message), attempt: attempt + 1, attempts: REPAIR_ATTEMPTS });
+            options = { request, current: sql, databaseError: message };
         }
     }
 
     // Hand it over anyway: a statement that failed to validate is still a
     // starting point, and the user may know something the model does not.
-    return { sql, validated: false, note: `Did not run on ${connection.name}: ${firstOracleError(lastError)}` };
+    return { sql, validated: false, note: 'Could not get a statement that runs.' };
 }
+

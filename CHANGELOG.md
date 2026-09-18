@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.0
+
+- **A harness around the model, not just a prompt.** Every generated reply is
+  inspected before it can run: one statement, `SELECT` or `WITH` only, and
+  nothing that reaches outside the query — no `UTL_`, `DBMS_`, `APEX_`,
+  `HTTPURITYPE`, database links or `EXECUTE IMMEDIATE`. A refused reply goes
+  back with the reason. This is enforcement, not advice: on a live pod
+  `UTL_HTTP.request` returns `ORA-29273`, meaning the call was attempted and
+  only the network stopped it.
+- **The model can check a name instead of guessing.** A reply that reads only
+  the data dictionary is recognised as a lookup rather than an answer: it runs,
+  and the rows go back so the real query can be written from them. Up to three
+  lookups.
+- The prompt carries what the dictionary actually looks like on Fusion, which
+  is not what a model expects: the connected user reads through synonyms, so
+  `ALL_TABLES` is usually empty for application objects and `ALL_CONS_COLUMNS`
+  returns nothing — `ALL_TAB_COLUMNS`, `ALL_OBJECTS` and `ALL_SYNONYMS` are the
+  ones that answer.
+- Comments and string literals are masked before any of this, so a `--` note
+  about deleting rows, or the word UPDATE inside a literal, is not mistaken for
+  the statement.
+
 ## 0.7.0
 
 - **The identity domain is worked out from the Fusion host.** An unauthenticated
