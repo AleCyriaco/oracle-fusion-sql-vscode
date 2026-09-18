@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.1
+
+- **FSQL** on the activity bar icon, set two rows over two so each letter is
+  about twice the height four in a line would allow in a 24px square. Drawn as
+  stroked paths rather than text, so it renders the same everywhere — and so
+  the S reads as an S, which a square stencil does not. The gallery icon keeps
+  the database mark with the wordmark beneath it.
+- The dictionary guidance is now measured rather than assumed. On a live pod the
+  connected user owns nothing, so `USER_TABLES`, `USER_TAB_COLUMNS` and
+  `USER_CONS_COLUMNS` are entirely empty; every application name is a synonym
+  onto a `_SEC` security view (`AP_INVOICES_ALL` → `AP_INVOICES_ALL_SEC`), which
+  is why `ALL_TABLES` is empty too; and `ALL_CONSTRAINTS` holds nothing for
+  those views. The model is told all of it, so it does not spend a lookup
+  finding out.
+
 ## 0.8.0
 
 - **A harness around the model, not just a prompt.** Every generated reply is

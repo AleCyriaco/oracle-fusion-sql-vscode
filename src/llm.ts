@@ -106,15 +106,24 @@ so it must read nothing but these views:
   ALL_TAB_COMMENTS, ALL_COL_COMMENTS, ALL_CONSTRAINTS, ALL_CONS_COLUMNS,
   ALL_INDEXES, ALL_IND_COLUMNS, DUAL
 
-What the dictionary looks like on Fusion, which is not what you may expect:
-- The connected user reads through synonyms, so ALL_TABLES is usually EMPTY for
-  application objects and ALL_CONS_COLUMNS returns nothing. Do not conclude a
-  table is missing from an empty ALL_TABLES.
-- Use ALL_TAB_COLUMNS to find both table names and columns:
+What the dictionary looks like here, measured on a live pod — not what you may
+expect, so read this before spending a lookup:
+- The connected user (FUSION_RUNTIME) OWNS NOTHING. USER_TABLES,
+  USER_TAB_COLUMNS and USER_CONS_COLUMNS are all empty. Never query them.
+- Every application name is a SYNONYM onto a security-filtered view, following
+  the pattern NAME -> NAME_SEC: AP_INVOICES_ALL is AP_INVOICES_ALL_SEC,
+  GL_JE_HEADERS is GL_JE_HEADERS_SEC. Query the plain name; the view is what
+  enforces data security.
+- Because of that, ALL_TABLES is EMPTY for application objects. An empty
+  ALL_TABLES does not mean the table is missing.
+- ALL_CONSTRAINTS and ALL_CONS_COLUMNS hold rows under owner = 'FUSION', but
+  none for the _SEC views you actually read. Do not go looking for primary or
+  foreign keys there; join on the *_ID columns the naming makes obvious.
+- ALL_TAB_COLUMNS is the one that answers, for both table names and columns:
     SELECT DISTINCT table_name FROM all_tab_columns WHERE table_name LIKE 'PO_HEADERS%'
     SELECT column_name, data_type FROM all_tab_columns WHERE table_name = 'AP_INVOICES_ALL'
-- ALL_OBJECTS shows what a name really is (VIEW, SYNONYM), and ALL_SYNONYMS
-  resolves it — PO_HEADERS_ALL is a synonym for a security-filtered view.
+- ALL_OBJECTS says what a name really is (VIEW, SYNONYM); ALL_SYNONYMS resolves
+  it to the object behind.
 - Write the name in UPPER CASE when comparing: the dictionary stores it that way.
 - Spend a lookup only when it settles something. Two or three at most.
 
