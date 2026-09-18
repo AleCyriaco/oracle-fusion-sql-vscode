@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.3
+
+- The activity bar carries Oracle's wide O with FSQL inside it, replacing the
+  stacked OF/SQL, which read as two lines of small text rather than as a mark.
+  At 24px the inner letters stop being individually readable and the silhouette
+  does the work — which is how a mark that size has to behave. The gallery icon
+  is unchanged.
+
 ## 0.9.2
 
 - New mark: a flat database stack in the logo's blue and orange with **OFSQL**
