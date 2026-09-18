@@ -451,8 +451,7 @@ async function runQuery(context: vscode.ExtensionContext): Promise<void> {
     }
 
     const pageSize = vscode.workspace.getConfiguration('fusionSql').get<number>('pageSize') ?? 200;
-    const panel = ResultsPanel.show(context.extensionUri);
-    panel.setConnection(connection.name);
+    const panel = ResultsPanel.show(context.extensionUri, connection.name);
     panel.setStatus(`Running on ${connection.name}…`);
 
     const fetchPage = (offset: number): Promise<QueryPage> => client.query(sql, offset, pageSize);

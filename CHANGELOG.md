@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.1
+
+- **One results panel per connection.** A single panel made every query replace
+  the last, which was wrong exactly when it mattered: running the same statement
+  against DEV and PROD to compare them left one result and no way to see the
+  other. The two now sit side by side as ordinary tabs, each keeping its own
+  page and its own paging state — Previous and Next in one no longer move the
+  other.
+- Exported CSV is offered under the environment's name rather than untitled.
+
 ## 0.9.0
 
 - **A connection per editor.** One active connection for the whole window is

@@ -67,8 +67,11 @@ configured, the status bar shows which connection the focused editor uses; click
 it to pin that editor to another one, or to let it follow the window default
 again. A pinned editor is marked, so changing the default cannot silently move a
 query you deliberately aimed at one environment — which is the point when the
-two tabs open are DEV and PROD. The results tab names the environment its rows
-came from.
+two tabs open are DEV and PROD.
+
+Results come back in **one panel per connection**, so the same statement run
+against two environments gives two tabs to compare rather than one replacing the
+other. Each keeps its own page and paging.
 
 > The Run button and the keybinding only appear on editors whose language is
 > **SQL**. A file made with <kbd>Ctrl/Cmd</kbd>+<kbd>N</kbd> starts as plain
@@ -84,7 +87,8 @@ Right-click a connection for **Test**, **Edit**, **Duplicate**, **Delete**, and
 stored password left alone unless you type a new one; renaming carries the
 secrets across.
 
-Results open beside the editor, one page at a time, with **Export CSV**.
+Results open beside the editor, one page at a time, with **Export CSV** — one
+panel per connection, named after it.
 
 ## Signing in
 

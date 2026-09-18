@@ -7,25 +7,38 @@ import { QueryPage } from './client';
 import { toCsv } from './protocol';
 
 export class ResultsPanel {
-    private static current: ResultsPanel | undefined;
+    /**
+     * One panel per connection, not one in total.
+     *
+     * A single panel made every query replace the last, which is wrong exactly
+     * when it matters: running the same statement against DEV and PROD to
+     * compare them left one result and no way to see the other. Keyed by
+     * connection, the two sit side by side as ordinary tabs, and each keeps its
+     * own page and its own paging state.
+     */
+    private static readonly open = new Map<string, ResultsPanel>();
     private readonly panel: vscode.WebviewPanel;
     private disposables: vscode.Disposable[] = [];
     private page?: QueryPage;
     private fetchPage?: (offset: number) => Promise<QueryPage>;
 
-    static show(extensionUri: vscode.Uri): ResultsPanel {
-        if (ResultsPanel.current) {
-            ResultsPanel.current.panel.reveal(vscode.ViewColumn.Beside, true);
-            return ResultsPanel.current;
+    static show(extensionUri: vscode.Uri, connection: string): ResultsPanel {
+        const existing = ResultsPanel.open.get(connection);
+        if (existing) {
+            // preserveFocus: the editor keeps the cursor; results are to be read,
+            // not typed into.
+            existing.panel.reveal(existing.panel.viewColumn, true);
+            return existing;
         }
-        ResultsPanel.current = new ResultsPanel(extensionUri);
-        return ResultsPanel.current;
+        const panel = new ResultsPanel(extensionUri, connection);
+        ResultsPanel.open.set(connection, panel);
+        return panel;
     }
 
-    private constructor(private readonly extensionUri: vscode.Uri) {
+    private constructor(private readonly extensionUri: vscode.Uri, private readonly connection: string) {
         this.panel = vscode.window.createWebviewPanel(
             'fusionSql.results',
-            'Fusion Results',
+            `Results · ${connection}`,
             { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
             {
                 enableScripts: true,
@@ -36,15 +49,6 @@ export class ResultsPanel {
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
         this.panel.webview.onDidReceiveMessage((message) => this.onMessage(message), null, this.disposables);
         this.panel.webview.html = this.html();
-    }
-
-    /**
-     * Name the environment in the tab. With a connection per editor, two
-     * queries land in the same panel one after the other, and the rows alone do
-     * not say which pod they came from.
-     */
-    setConnection(name: string): void {
-        this.panel.title = `Results · ${name}`;
     }
 
     setStatus(text: string): void {
@@ -77,6 +81,7 @@ export class ResultsPanel {
             const target = await vscode.window.showSaveDialog({
                 filters: { 'CSV': ['csv'] },
                 saveLabel: 'Export',
+                defaultUri: vscode.Uri.file(`${this.connection}.csv`),
             });
             if (!target) { return; }
             const csv = toCsv(this.page.columns, this.page.rows);
@@ -113,8 +118,7 @@ export class ResultsPanel {
     }
 
     private dispose(): void {
-        ResultsPanel.current = undefined;
-        this.panel.dispose();
+        ResultsPanel.open.delete(this.connection);
         for (const d of this.disposables) { d.dispose(); }
         this.disposables = [];
     }
