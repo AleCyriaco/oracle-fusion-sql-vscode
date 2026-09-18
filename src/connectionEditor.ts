@@ -20,6 +20,8 @@ export type EditorHost = {
     /** Run a connection test against unsaved values; returns a message to show. */
     test(connection: ConnectionConfig, password?: string): Promise<string>;
     save(result: EditorResult): Promise<void>;
+    /** Work out the identity domain from the Fusion host. */
+    detectIdentityDomain(fusionHost: string): Promise<string>;
 };
 
 export class ConnectionEditor {
@@ -84,6 +86,27 @@ export class ConnectionEditor {
 
     private async onMessage(message: FormMessage): Promise<void> {
         if (message.type === 'cancel') { this.panel.dispose(); return; }
+
+        if (message.type === 'detect') {
+            const host = (message.url ?? '').trim();
+            if (!host) {
+                void this.panel.webview.postMessage({
+                    type: 'result', ok: false, text: 'Enter the Fusion host first.' });
+                return;
+            }
+            void this.panel.webview.postMessage({
+                type: 'busy', text: 'Asking the Fusion host which identity domain issues its tokens…' });
+            try {
+                const domain = await this.host.detectIdentityDomain(host);
+                void this.panel.webview.postMessage({ type: 'detected', idcsHost: domain });
+            } catch (error) {
+                void this.panel.webview.postMessage({
+                    type: 'result', ok: false,
+                    text: error instanceof Error ? error.message : String(error),
+                });
+            }
+            return;
+        }
 
         const built = this.build(message);
         if (typeof built === 'string') {
@@ -188,7 +211,7 @@ function hostOf(value: string): string {
 }
 
 type FormMessage = {
-    type: 'save' | 'test' | 'cancel';
+    type: 'save' | 'test' | 'cancel' | 'detect';
     name?: string;
     url?: string;
     authMode?: 'basic' | 'sso';
@@ -241,10 +264,15 @@ function html(webview: vscode.Webview, extensionUri: vscode.Uri): string {
 
   <div id="ssoFields" hidden>
     <label for="idcsHost">Identity domain host</label>
-    <input id="idcsHost" type="text" placeholder="e.g. idcs-a1b2c3d4.identity.oraclecloud.com" spellcheck="false">
+    <div class="row">
+      <input id="idcsHost" type="text" placeholder="detected from the Fusion host" spellcheck="false">
+      <button type="button" id="detect" class="secondary"
+              title="Ask the Fusion host which identity domain issues its tokens"><span>Detect</span></button>
+    </div>
     <p class="hint">
-      <b>Not the Fusion pod.</b> The host that issues tokens — in the Oracle Cloud console under
-      Identity &amp; Security → Domains. The authorize and token endpoints are derived from it.
+      Filled in for you from the Fusion host — it is <b>not</b> the pod itself. Where that domain
+      federates onward, to Microsoft Entra or anything else, makes no difference: the browser
+      follows the rest of the chain and your existing session applies.
     </p>
 
     <label for="clientId">OAuth client ID</label>

@@ -123,3 +123,8 @@ button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-off
     background: var(--vscode-button-secondaryBackground);
 }
 .secondary:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+
+/* A field with an action beside it, sharing the field's height. */
+.row { display: flex; gap: 8px; align-items: stretch; }
+.row input { flex: 1 1 auto; }
+.row button { flex: 0 0 auto; padding: 0 14px; min-height: 0; }

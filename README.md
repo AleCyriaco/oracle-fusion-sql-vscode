@@ -83,10 +83,15 @@ Results open beside the editor, one page at a time, with **Export CSV**.
 **Username and password** — the ordinary case. Works everywhere, and can deploy
 the proxy report for you the first time you connect.
 
-**Single sign-on (OAuth 2.0)** — browser sign-in against IDCS / OCI IAM using
-Authorization Code with PKCE, so no client secret ships with the extension. You
-need an application registered in your identity domain with
-`vscode://AleCyriaco.fusion-sql/auth` as a redirect URI, and its client ID.
+**Single sign-on (OAuth 2.0)** — browser sign-in using Authorization Code with
+PKCE, so no client secret ships with the extension. The identity domain is
+detected from the Fusion host, so all you supply is a client ID: an application
+registered in that domain with `vscode://AleCyriaco.fusion-sql/auth` as a
+redirect URI.
+
+Where the domain federates onward — Microsoft Entra, Okta, anything — makes no
+difference. The token still comes from the Oracle domain, and the browser follows
+the rest of the chain with the session you already have.
 
 > **SSO cannot deploy the proxy report.** BI Publisher's SOAP services
 > authenticate from `<v2:userID>`/`<v2:password>` *inside the request envelope*,

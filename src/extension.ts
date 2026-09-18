@@ -8,6 +8,7 @@ import {
 } from './connections';
 import { ResultsPanel } from './resultsPanel';
 import { isBlankStatement, splitStatements } from './protocol';
+import { discoverIdentityDomain } from './discovery';
 import { History, HistoryItem, HistoryProvider } from './history';
 import { AskPanel, AskProgress, AskResult } from './askPanel';
 import {
@@ -175,6 +176,12 @@ function editorHost(context: vscode.ExtensionContext) {
             const client = buildClientWith(context, connection, auth);
             const result = await client.testConnection();
             return result.message;
+        },
+
+        detectIdentityDomain(fusionHost: string): Promise<string> {
+            const timeout = (vscode.workspace.getConfiguration('fusionSql')
+                .get<number>('timeoutSeconds') ?? 120) * 1000;
+            return discoverIdentityDomain(fusionHost, timeout);
         },
 
         async save(result: EditorResult): Promise<void> {

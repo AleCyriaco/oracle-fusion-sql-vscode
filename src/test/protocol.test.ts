@@ -6,6 +6,7 @@ import {
     reportRunBody, runUrl, splitStatements, toCsv, defaultReportPath,
 } from '../protocol';
 import { elementText, escapeXml } from '../soap';
+import { pickIdentityDomain } from '../discovery';
 
 test('encodeSql round-trips through gzip+base64', () => {
     const sql = "SELECT 'acentuação ñ' FROM dual";
@@ -168,4 +169,28 @@ test('isBlankStatement recognises text that carries no statement', () => {
     assert.equal(isBlankStatement('/* only\n   a block */\n\n'), true);
     assert.equal(isBlankStatement('   \n\t '), true);
     assert.equal(isBlankStatement('-- comment\nSELECT 1 FROM dual'), false);
+});
+
+test('pickIdentityDomain recognises the Oracle identity host', () => {
+    assert.equal(pickIdentityDomain([
+        'https://pod.fa.em4.oraclecloud.com/fscmUI/faces/FuseWelcome',
+        'https://pod.fa.em4.oraclecloud.com/fscmUI/adfAuthentication?level=FORM',
+        'https://idcs-19546cb9af084acb834eed51614b59f8.identity.oraclecloud.com/oauth2/v1/authorize?response_mode=form_post',
+    ]), 'idcs-19546cb9af084acb834eed51614b59f8.identity.oraclecloud.com');
+});
+
+test('pickIdentityDomain also accepts any host answering on the authorize path', () => {
+    assert.equal(pickIdentityDomain(['https://login.example.com/oauth2/v1/authorize?x=1']),
+        'login.example.com');
+});
+
+test('pickIdentityDomain does not mistake the pod for the identity domain', () => {
+    assert.equal(pickIdentityDomain([
+        'https://pod.fa.em4.oraclecloud.com/fscmUI/faces/FuseWelcome',
+        'https://pod.fa.em4.oraclecloud.com/fscmUI/adfAuthentication?level=FORM',
+    ]), undefined);
+});
+
+test('pickIdentityDomain skips entries that are not URLs', () => {
+    assert.equal(pickIdentityDomain(['', 'not a url', '/relative/path']), undefined);
 });

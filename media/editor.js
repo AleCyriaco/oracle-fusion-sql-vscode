@@ -6,7 +6,7 @@
 
     const fields = ['name', 'url', 'authMode', 'user', 'password', 'reportPath', 'idcsHost', 'clientId', 'scope'];
     const status = $('status');
-    const buttons = [$('test'), $('save'), $('cancel')];
+    const buttons = [$('test'), $('save'), $('cancel'), $('detect')];
 
     function values() {
         const out = { };
@@ -35,7 +35,19 @@
         for (const button of buttons) { button.disabled = busy; }
     }
 
-    $('authMode').addEventListener('change', applyMode);
+    $('detect').addEventListener('click', () => {
+        setBusy(true);
+        vscode.postMessage({ type: 'detect', url: $('url').value });
+    });
+
+    $('authMode').addEventListener('change', () => {
+        applyMode();
+        // Switching to single sign-on with a host already typed: fill the
+        // domain in rather than making the user go and look it up.
+        if ($('authMode').value === 'sso' && $('url').value.trim() && !$('idcsHost').value.trim()) {
+            $('detect').click();
+        }
+    });
     $('test').addEventListener('click', () => { setBusy(true); vscode.postMessage({ type: 'test', ...values() }); });
     $('save').addEventListener('click', () => { setBusy(true); vscode.postMessage({ type: 'save', ...values() }); });
     $('cancel').addEventListener('click', () => vscode.postMessage({ type: 'cancel' }));
@@ -73,6 +85,13 @@
             return;
         }
         if (message.type === 'busy') { show('busy', message.text); return; }
+        if (message.type === 'detected') {
+            setBusy(false);
+            $('idcsHost').value = message.idcsHost;
+            show('ok', `Identity domain: ${message.idcsHost}`);
+            $('clientId').focus();
+            return;
+        }
         if (message.type === 'result') {
             setBusy(false);
             show(message.ok ? 'ok' : 'error', message.text);

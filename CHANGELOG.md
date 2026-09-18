@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+- **The identity domain is worked out from the Fusion host.** An unauthenticated
+  request to a Fusion page is bounced to whichever domain issues its tokens, so
+  the address nobody knows by heart was already there for the asking. Choosing
+  single sign-on fills it in; there is a **Detect** button for when it changes.
+  Verified against three pods across two tenants.
+- Where that domain federates onward — Microsoft Entra, Okta, anything — makes
+  no difference: the token still comes from the Oracle domain, and the browser
+  follows the rest of the chain with whatever session you already have.
+
 ## 0.6.3
 
 - **Test Connection signs in first** on a single-sign-on connection that has no
