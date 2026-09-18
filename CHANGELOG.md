@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.3
+
+- **Test Connection signs in first** on a single-sign-on connection that has no
+  session yet, instead of telling you to save the form, close it and run a
+  separate command.
+- The form rejects the two ways the SSO fields are usually filled in wrong: the
+  Fusion pod typed as the identity domain, and a Fusion username typed as the
+  OAuth client ID. Both used to be accepted and to fail later with an opaque
+  provider error.
+- The redirect URI to register is shown in the form, so it can be handed to
+  whoever administers the identity domain.
+
 ## 0.6.2
 
 - **Adding a key now switches to that provider.** It used to store the key and

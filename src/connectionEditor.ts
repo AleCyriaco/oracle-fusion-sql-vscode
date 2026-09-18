@@ -33,11 +33,13 @@ export class ConnectionEditor {
         host: EditorHost,
         secrets: vscode.SecretStorage,
         existing?: ConnectionConfig,
+        extensionId = 'alecyriaco.fusion-sql',
     ): void {
         const key = existing?.name ?? '\0new';
         const open = ConnectionEditor.panels.get(key);
         if (open) { open.panel.reveal(); return; }
-        ConnectionEditor.panels.set(key, new ConnectionEditor(extensionUri, host, secrets, existing, key));
+        ConnectionEditor.panels.set(
+            key, new ConnectionEditor(extensionUri, host, secrets, existing, key, extensionId));
     }
 
     private constructor(
@@ -46,6 +48,7 @@ export class ConnectionEditor {
         private readonly secrets: vscode.SecretStorage,
         private readonly existing: ConnectionConfig | undefined,
         private readonly key: string,
+        private readonly extensionId: string,
     ) {
         this.panel = vscode.window.createWebviewPanel(
             'fusionSql.connectionEditor',
@@ -74,6 +77,8 @@ export class ConnectionEditor {
             connection: this.existing ?? { name: '', url: '', authMode: 'basic' },
             isNew: !this.existing,
             hasPassword,
+            // Shown verbatim: whoever registers the application has to enter it exactly.
+            redirectUri: `${vscode.env.uriScheme}://${this.extensionId}/auth`,
         });
     }
 
@@ -143,7 +148,22 @@ export class ConnectionEditor {
         const clientId = (message.clientId ?? '').trim();
         const idcsHost = (message.idcsHost ?? '').trim();
         if (!idcsHost) { return 'Enter the identity domain host.'; }
+        // The pod does not issue tokens, and typing it here is the single most
+        // common way this form is filled in wrong.
+        if (hostOf(idcsHost) === hostOf(url)) {
+            return 'The identity domain is not the Fusion pod. It is the host that issues tokens — '
+                + 'usually idcs-xxxxxxxx.identity.oraclecloud.com. Find it in the Oracle Cloud '
+                + 'console under Identity & Security → Domains.';
+        }
         if (!clientId) { return 'Enter the OAuth client ID.'; }
+        // A Fusion username in this field means the application was never
+        // registered, and the sign-in would fail with an opaque provider error.
+        if (clientId.toLowerCase() === (message.user ?? '').trim().toLowerCase()
+            || /^[A-Z]{2,4}\d{4,}$/.test(clientId)) {
+            return 'That looks like a Fusion username, not an OAuth client ID. The client ID comes '
+                + 'from an application registered in your identity domain — ask whoever administers '
+                + 'it to register one with this redirect URI.';
+        }
         if (!connection.reportPath) {
             return 'Single sign-on cannot deploy the proxy report, so a report path is required.';
         }
@@ -160,6 +180,11 @@ export class ConnectionEditor {
         for (const d of this.disposables) { d.dispose(); }
         this.disposables = [];
     }
+}
+
+/** Host part only, so a pasted URL compares equal to a bare hostname. */
+function hostOf(value: string): string {
+    return value.trim().replace(/^https?:\/\//i, '').split('/')[0].toLowerCase();
 }
 
 type FormMessage = {
@@ -216,11 +241,18 @@ function html(webview: vscode.Webview, extensionUri: vscode.Uri): string {
 
   <div id="ssoFields" hidden>
     <label for="idcsHost">Identity domain host</label>
-    <input id="idcsHost" type="text" placeholder="e.g. idcs-xxxx.identity.oraclecloud.com" spellcheck="false">
-    <p class="hint">The authorize and token endpoints are derived from it.</p>
+    <input id="idcsHost" type="text" placeholder="e.g. idcs-a1b2c3d4.identity.oraclecloud.com" spellcheck="false">
+    <p class="hint">
+      <b>Not the Fusion pod.</b> The host that issues tokens — in the Oracle Cloud console under
+      Identity &amp; Security → Domains. The authorize and token endpoints are derived from it.
+    </p>
 
     <label for="clientId">OAuth client ID</label>
-    <input id="clientId" type="text" spellcheck="false">
+    <input id="clientId" type="text" placeholder="e.g. a1b2c3d4e5f6..." spellcheck="false">
+    <p class="hint">
+      <b>Not your Fusion username.</b> It identifies an application registered in that identity
+      domain, with <code id="redirect"></code> as a redirect URI.
+    </p>
 
     <label for="scope">Scope</label>
     <input id="scope" type="text" placeholder="openid offline_access" spellcheck="false">

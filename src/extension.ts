@@ -129,7 +129,8 @@ function addConnection(context: vscode.ExtensionContext): void {
 async function editConnection(context: vscode.ExtensionContext, item?: ConnectionItem): Promise<void> {
     const connection = await pick(item);
     if (!connection) { return; }
-    ConnectionEditor.show(context.extensionUri, editorHost(context), context.secrets, connection);
+    ConnectionEditor.show(context.extensionUri, editorHost(context), context.secrets, connection,
+        context.extension.id);
 }
 
 /**
@@ -142,19 +143,33 @@ async function duplicateConnection(context: vscode.ExtensionContext, item?: Conn
     if (!source) { return; }
     let name = `${source.name} copy`;
     for (let i = 2; findConnection(name); i++) { name = `${source.name} copy ${i}`; }
-    ConnectionEditor.show(context.extensionUri, editorHost(context), context.secrets, { ...source, name });
+    ConnectionEditor.show(context.extensionUri, editorHost(context), context.secrets,
+        { ...source, name }, context.extension.id);
 }
 
 function editorHost(context: vscode.ExtensionContext) {
     return {
         /** Test what is on screen, not what is saved — including an unsaved password. */
         async test(connection: ConnectionConfig, password?: string): Promise<string> {
-            const auth = password && (connection.authMode ?? 'basic') === 'basic'
+            let auth = password && (connection.authMode ?? 'basic') === 'basic'
                 ? new BasicAuth(connection.user ?? '', password)
                 : await resolveAuth(connection, context.secrets);
+
+            // Single sign-on cannot be tested without a session, and asking the
+            // user to save, close the form and run a separate command first is
+            // a detour. Sign in from here, with the values on screen.
+            if (!auth && (connection.authMode ?? 'basic') === 'sso' && connection.oauth) {
+                const token = await vscode.window.withProgress(
+                    { location: vscode.ProgressLocation.Notification, title: `Signing in to ${connection.name}…` },
+                    () => signInInteractive(connection.oauth!, context.extension.id, waitForCallback),
+                );
+                await writeToken(context.secrets, connection.name, token);
+                tree.refresh();
+                auth = await resolveAuth(connection, context.secrets);
+            }
             if (!auth) {
                 throw new Error((connection.authMode ?? 'basic') === 'sso'
-                    ? 'Save the connection and run "Sign In (SSO)" before testing it.'
+                    ? 'Sign-in did not complete.'
                     : 'Enter a password to test the connection.');
             }
             const client = buildClientWith(context, connection, auth);

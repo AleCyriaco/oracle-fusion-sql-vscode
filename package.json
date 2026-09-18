@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {

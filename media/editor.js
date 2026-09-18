@@ -63,6 +63,7 @@
                 ? c.oauth.authorizeUrl.replace(/^https?:\/\//, '').split('/')[0] : '';
             $('clientId').value = (c.oauth && c.oauth.clientId) || '';
             $('scope').value = (c.oauth && c.oauth.scope) || '';
+            if (message.redirectUri) { $('redirect').textContent = message.redirectUri; }
             if (message.hasPassword) {
                 $('password').placeholder = '••••••••  (leave blank to keep)';
                 $('passwordHint').textContent = 'A password is already stored. Leave blank to keep it.';
