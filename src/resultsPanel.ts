@@ -38,6 +38,15 @@ export class ResultsPanel {
         this.panel.webview.html = this.html();
     }
 
+    /**
+     * Name the environment in the tab. With a connection per editor, two
+     * queries land in the same panel one after the other, and the rows alone do
+     * not say which pod they came from.
+     */
+    setConnection(name: string): void {
+        this.panel.title = `Results · ${name}`;
+    }
+
     setStatus(text: string): void {
         void this.panel.webview.postMessage({ type: 'status', text });
     }

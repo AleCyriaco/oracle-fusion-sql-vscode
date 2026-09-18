@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0
+
+- **A connection per editor.** One active connection for the whole window is
+  wrong as soon as two environments are open: comparing a query between DEV and
+  PROD meant flipping a global setting and remembering which way it pointed. Each
+  editor can now be pinned to a connection, and a status bar item shows which one
+  the focused editor runs on — click it to change, or to let the editor follow
+  the window default again. A pinned editor is marked, so changing the default
+  cannot silently move a query you deliberately aimed somewhere.
+- The results tab names the environment its rows came from.
+- **Set as Active Connection** is now **Set as Default Connection**, which is
+  what it does: editors pinned elsewhere keep their own.
+
 ## 0.8.1
 
 - **FSQL** on the activity bar icon, set two rows over two so each letter is

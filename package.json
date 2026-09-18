@@ -2,7 +2,7 @@
   "name": "fusion-sql",
   "displayName": "Oracle Fusion SQL",
   "description": "Run SQL against Oracle Fusion Cloud through BI Publisher — no JDBC, no Java.",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "publisher": "AleCyriaco",
   "license": "MIT",
   "repository": {
@@ -115,7 +115,7 @@
       },
       {
         "command": "fusionSql.setActiveConnection",
-        "title": "Set as Active Connection",
+        "title": "Set as Default Connection",
         "category": "Fusion",
         "icon": "$(check)"
       },
@@ -196,6 +196,12 @@
         "title": "Select AI Provider",
         "category": "Fusion",
         "icon": "$(server)"
+      },
+      {
+        "command": "fusionSql.setEditorConnection",
+        "title": "Set Connection for This Editor",
+        "category": "Fusion",
+        "icon": "$(database)"
       }
     ],
     "menus": {
@@ -333,6 +339,11 @@
           "command": "fusionSql.generateQuery",
           "when": "editorLangId == sql",
           "group": "navigation@2"
+        },
+        {
+          "command": "fusionSql.setEditorConnection",
+          "when": "editorLangId == sql",
+          "group": "1_fusion@1"
         }
       ]
     },

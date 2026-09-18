@@ -58,9 +58,17 @@ Development Host.
    setup.
 2. Fill the form and press **Test Connection** before saving — a wrong host or
    password is only ever discovered by trying.
-3. Click a connection to make it active.
+3. Click a connection to make it the window default.
 4. **New Query** in the view toolbar opens an editor already set to SQL. Press
    <kbd>Ctrl/Cmd</kbd>+<kbd>Enter</kbd>, or click ▷ in the editor toolbar.
+
+**Each editor can run somewhere different.** With more than one environment
+configured, the status bar shows which connection the focused editor uses; click
+it to pin that editor to another one, or to let it follow the window default
+again. A pinned editor is marked, so changing the default cannot silently move a
+query you deliberately aimed at one environment — which is the point when the
+two tabs open are DEV and PROD. The results tab names the environment its rows
+came from.
 
 > The Run button and the keybinding only appear on editors whose language is
 > **SQL**. A file made with <kbd>Ctrl/Cmd</kbd>+<kbd>N</kbd> starts as plain

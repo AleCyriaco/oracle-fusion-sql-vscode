@@ -10,6 +10,7 @@ import { ResultsPanel } from './resultsPanel';
 import { isBlankStatement, splitStatements } from './protocol';
 import { discoverIdentityDomain } from './discovery';
 import { inspectStatement, isDictionaryQuery } from './guard';
+import { EditorBindings } from './editorBinding';
 import { toCsv } from './protocol';
 import { History, HistoryItem, HistoryProvider } from './history';
 import { AskPanel, AskProgress, AskResult } from './askPanel';
@@ -27,6 +28,7 @@ const ACTIVE_KEY = 'fusionSql.activeConnection';
  */
 let log: vscode.LogOutputChannel;
 let history: History;
+let bindings: EditorBindings;
 
 const AI_KEY = (provider: ProviderId) => `fusionSql.aiKey.${provider}`;
 
@@ -42,14 +44,20 @@ export function activate(context: vscode.ExtensionContext): void {
 
     tree = new ConnectionsProvider(context);
     history = new History(context);
+    bindings = new EditorBindings(context);
+    bindings.refresh();
     const historyTree = new HistoryProvider(history);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('fusionSql.connections', tree),
         vscode.window.registerTreeDataProvider('fusionSql.history', historyTree),
         vscode.window.registerUriHandler({ handleUri: onUri }),
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('fusionSql.connections')) { tree.refresh(); }
+            if (e.affectsConfiguration('fusionSql.connections')) { tree.refresh(); bindings.refresh(); }
         }),
+        vscode.window.onDidChangeActiveTextEditor(() => bindings.refresh()),
+        vscode.workspace.onDidOpenTextDocument(() => bindings.refresh()),
+        vscode.workspace.onDidCloseTextDocument(() => void bindings.prune()),
+        command('fusionSql.setEditorConnection', () => setEditorConnection(context)),
         command('fusionSql.refresh', () => tree.refresh()),
         command('fusionSql.addConnection', () => addConnection(context)),
         command('fusionSql.importConnections', () => importConnections()),
@@ -239,9 +247,61 @@ async function removeConnection(context: vscode.ExtensionContext, item?: Connect
 async function setActive(context: vscode.ExtensionContext, item?: ConnectionItem): Promise<void> {
     const connection = await pick(item);
     if (!connection) { return; }
-    await context.globalState.update(ACTIVE_KEY, connection.name);
+    await bindings.setDefault(connection.name);
     tree.refresh();
-    void vscode.window.showInformationMessage(`Active connection: ${connection.name}`);
+    void vscode.window.showInformationMessage(
+        `Default connection: ${connection.name}. Editors pinned to another one keep it.`);
+}
+
+/**
+ * Point the focused editor at a connection, or let it follow the window
+ * default again.
+ */
+async function setEditorConnection(context: vscode.ExtensionContext): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) { throw new Error('No editor is focused.'); }
+
+    const all = listConnections();
+    if (all.length === 0) {
+        const choice = await vscode.window.showInformationMessage(
+            'No Fusion connections yet.', 'Add Connection');
+        if (choice === 'Add Connection') { addConnection(context); }
+        return;
+    }
+
+    const current = bindings.resolve(editor.document);
+    const pinned = bindings.isBound(editor.document);
+    type Row = vscode.QuickPickItem & { name?: string; clear?: boolean };
+    const rows: Row[] = all.map((c) => ({
+        label: c.name,
+        description: c.url,
+        detail: c.name === current?.name
+            ? (pinned ? 'current — pinned to this editor' : 'current — from the window default')
+            : undefined,
+        name: c.name,
+    }));
+    if (pinned) {
+        rows.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
+        rows.push({
+            label: '$(circle-slash) Follow the window default',
+            detail: `Unpin this editor${bindings.defaultName() ? ` — currently ${bindings.defaultName()}` : ''}`,
+            clear: true,
+        });
+    }
+
+    const picked = await vscode.window.showQuickPick(rows, {
+        title: `Run queries in ${shortName(editor.document)} on…`,
+        ignoreFocusOut: true,
+    });
+    if (!picked) { return; }
+    await bindings.bind(editor.document, picked.clear ? undefined : picked.name);
+    log.info(`editor ${editor.document.uri} -> ${picked.clear ? '(window default)' : picked.name}`);
+}
+
+function shortName(document: vscode.TextDocument): string {
+    return document.isUntitled
+        ? document.uri.path
+        : document.uri.path.split('/').pop() ?? document.uri.path;
 }
 
 // --- SSO -------------------------------------------------------------------
@@ -392,6 +452,7 @@ async function runQuery(context: vscode.ExtensionContext): Promise<void> {
 
     const pageSize = vscode.workspace.getConfiguration('fusionSql').get<number>('pageSize') ?? 200;
     const panel = ResultsPanel.show(context.extensionUri);
+    panel.setConnection(connection.name);
     panel.setStatus(`Running on ${connection.name}…`);
 
     const fetchPage = (offset: number): Promise<QueryPage> => client.query(sql, offset, pageSize);
@@ -431,9 +492,9 @@ export function statementAtCursor(editor: vscode.TextEditor): string {
 }
 
 async function activeConnection(context: vscode.ExtensionContext): Promise<ConnectionConfig | undefined> {
-    const name = context.globalState.get<string>(ACTIVE_KEY);
-    const existing = name ? findConnection(name) : undefined;
-    if (existing) { return existing; }
+    // The focused editor decides, so two tabs can point at two environments.
+    const resolved = bindings.resolve(vscode.window.activeTextEditor?.document);
+    if (resolved) { return resolved; }
 
     const all = listConnections();
     if (all.length === 0) {
@@ -444,15 +505,6 @@ async function activeConnection(context: vscode.ExtensionContext): Promise<Conne
         if (choice === 'Import connections.json') { await importConnections(); }
         return undefined;
     }
-    // With a single environment there is nothing to choose, and prompting from
-    // the command palette races with the palette closing: the quick pick can be
-    // dismissed before it is seen, which reads as the command doing nothing.
-    if (all.length === 1) {
-        await context.globalState.update(ACTIVE_KEY, all[0].name);
-        tree.refresh();
-        log.info(`Using the only configured connection: ${all[0].name}`);
-        return all[0];
-    }
     const picked = await vscode.window.showQuickPick(
         all.map((c) => ({ label: c.name, description: c.url, connection: c })),
         { title: 'Run on which connection?', ignoreFocusOut: true },
@@ -461,7 +513,7 @@ async function activeConnection(context: vscode.ExtensionContext): Promise<Conne
         log.warn('Connection picker dismissed.');
         return undefined;
     }
-    await context.globalState.update(ACTIVE_KEY, picked.connection.name);
+    await bindings.setDefault(picked.connection.name);
     tree.refresh();
     return picked.connection;
 }
